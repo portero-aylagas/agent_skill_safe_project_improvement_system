@@ -171,6 +171,7 @@ testable, and safe to change.
 | Function Responsibility | Find functions that do too many jobs, hide side effects, or have names that do not match behavior. |
 | Error Handling | Look for swallowed exceptions, unclear messages, and user/API/file failures that crash instead of failing clearly. |
 | Testability | Identify code that is hard to test because it is coupled to live services, environment variables, files, or UI frameworks. |
+| Software Delivery Testing | Check the repository's Testing Portfolio: static checks, unit tests, integration tests, smoke tests, regression tests, characterization tests, and full verification. Distinguish tests that freeze existing behavior from tests that prove intended new behavior. |
 | Reproducibility And Dependency Discipline | Check dependency files, Python version declarations, pinning or lock strategy, CI/local install alignment, and future breakage risk from floating requirements. |
 | CI Maturity | Check whether baseline CI runs local verification without live secrets and whether stronger checks are proportional to repository maturity. |
 | Data And JSON Validation | Check whether uploaded files, JSON, CSV, API responses, and model outputs are validated before moving through the system. |

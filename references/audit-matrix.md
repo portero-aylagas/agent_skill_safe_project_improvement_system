@@ -28,6 +28,11 @@ Use these user-facing audit families in reports and backlog items:
 - User-controlled file/path safety: paths and uploads are validated before use
   and do not expose arbitrary local files.
 - Verification: compile/import checks, pytest, smoke tests.
+- Software delivery testing: risk-based Testing Portfolio, characterization
+  before risky refactors, patch tests for intentional behavior changes,
+  regression tests for known bugs, smoke tests for critical workflows,
+  integration tests for important module wiring, and avoidance of brittle
+  low-value tests.
 - Documentation: public module/class/function docstrings, comments that reduce
   cognitive load, clear run command, sample input, expected output, limitations,
   and fallback behavior when needed for review or demo.

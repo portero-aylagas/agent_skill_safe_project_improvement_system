@@ -90,6 +90,43 @@ Return:
 - suggested integration or smoke tests
 - smallest useful test plan
 
+## Software Delivery Testing
+
+Check:
+
+- whether the repository has a clear local test or verification command
+- whether existing tests protect real user-visible, API-visible, or workflow
+  behavior
+- whether tests are classified by purpose:
+  - characterization tests for existing behavior before risky changes
+  - patch tests for intentional new behavior
+  - regression tests for known bugs or fragile behavior
+  - unit tests for pure deterministic logic
+  - integration tests for important wiring between modules
+  - smoke tests for critical workflows
+  - full verification for repository-wide checks after a patch
+- whether tests are missing for core deterministic behavior
+- whether risky refactors have characterization coverage before changes
+- whether previous bugs have regression tests
+- whether mocks, fakes, or fixtures are used only where they reduce fragility
+- whether tests avoid live services, live API keys, paid services, and
+  uncontrolled network access
+- whether tests are too coupled to implementation details
+- whether broad E2E tests are justified or unnecessarily brittle
+- whether static checks, compile/import checks, linting, and type checks are
+  part of verification when useful
+- whether test failures are easy to diagnose
+
+Return:
+
+- current verification and test inventory
+- test purpose classification
+- protected behaviors
+- unprotected high-risk behaviors
+- recommended Testing Portfolio
+- first safe test patch
+- tests that would be low-value, brittle, redundant, or over-engineered
+
 ## Reproducibility And Dependency Discipline
 
 Check:

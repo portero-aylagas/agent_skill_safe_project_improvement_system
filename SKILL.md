@@ -83,6 +83,8 @@ or multiple audit areas drive patch selection.
 - Do not push, install hooks, or add strict CI unless explicitly authorized.
 - Use fake clients/mocks for AI/API tests.
 - Normal verification must not require live API keys.
+- Distinguish characterization tests, patch tests, regression tests, smoke
+  tests, and full verification.
 - Review Mode, audit outputs, persistent backlog outputs, and run reports with
   audit findings must use the required block-based audit format, not wide
   Markdown tables and not only a free-text findings list. Tables may only be used
@@ -99,7 +101,8 @@ Review mode always loads `references/protocol.md`,
 `references/audit-matrix.md`, and `references/coding-standards.md`.
 
 Deep audit references are optional. In review mode, load
-`references/engineering-audits.md` for software engineering quality reviews. Load
+`references/engineering-audits.md` for software engineering quality reviews,
+including deeper general software testing strategy. Load
 `references/ai-workflow-audits.md` for AI System Audits: AI Software
 Architecture, prompts, APIs, RAG, tools, agents, speech, cost, evaluation, and
 multi-step AI/tool automation. Use `references/ai-integration-quality.md` as
@@ -116,7 +119,8 @@ AI-system-specific risks. Do not load deep audit references in safe refactor mod
 - `references/audit-matrix.md`: read for review/audit/backlog work.
 - `references/engineering-audits.md`: read when review mode needs deeper
   general software architecture, error handling, testability, validation,
-  documentation, hygiene, UI separation, or security checks.
+  documentation, hygiene, UI separation, software delivery testing, or security
+  checks.
 - `references/ai-workflow-audits.md`: read when review mode needs deeper prompt,
   AI Software Architecture, structured output, RAG, agent/tool, speech, cost, or
   workflow automation checks under `AI System Audits`.

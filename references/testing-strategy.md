@@ -33,6 +33,53 @@ For refactors, characterization and existing tests should usually keep the same
 expected behavior. For intentional behavior changes, update or add tests only
 when the new expectation is part of the patch.
 
+## Test Purpose Classification
+
+Every proposed test should be classified by purpose:
+
+- Characterization test: captures current behavior before changing it.
+- Patch test: proves intentional new behavior from the current patch.
+- Regression test: prevents a known bug from returning.
+- Unit test: checks isolated deterministic logic.
+- Integration test: checks important wiring between modules.
+- Smoke test: checks that a critical workflow starts and completes at a shallow
+  level.
+- Full verification: runs the repository's normal verification command after a
+  patch.
+
+A single pytest test may belong to more than one purpose. For example, a
+characterization test can be implemented as an integration test, and a
+regression test can also be a unit test.
+
+Characterization tests are a test purpose, not a separate implementation type.
+They can be implemented as unit tests, integration tests, smoke tests, golden
+input/output fixtures, snapshot-style structured output checks, or temporary
+manual checklists.
+
+## Testing Portfolio
+
+Do not blindly enforce the classic test pyramid. Use the cheapest stable test
+that gives meaningful confidence.
+
+Prefer:
+
+- static checks for syntax, imports, formatting, linting, and simple correctness
+  rules
+- unit tests for deterministic pure logic
+- integration tests for important module wiring
+- smoke tests for critical workflows
+- regression tests for bugs or fragile behavior already discovered
+- characterization tests before medium/high-risk refactors
+
+Avoid:
+
+- tests that only assert that something is not `None`
+- tests that duplicate implementation details
+- tests that require live secrets, paid services, or uncontrolled network access
+- broad E2E tests when a lower-level test gives equivalent confidence
+- large generated test suites that increase maintenance without protecting
+  important behavior
+
 ## Minimal Python Setup
 
 When no verification exists, add the smallest useful setup:

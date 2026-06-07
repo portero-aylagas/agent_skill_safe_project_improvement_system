@@ -1,12 +1,10 @@
 ---
 name: safe-project-improvement-system
 description: >-
-  Use this skill when asked to safely review, audit, refactor, improve, install
-  project-local agent rules, add verification, or automate changes in Python or
-  AI-integrated software. It enforces inspect, characterize, verify setup,
-  audit, backlog, one patch, and verify; one lead editing agent; fake clients
-  for AI/API tests, no live API keys by default, and no push/hooks/strict CI
-  without explicit approval.
+  Use this skill when the user wants to safely review, audit, refactor, or
+  improve a Python or AI-integrated project with characterization, local
+  verification, focused patches, fake-client tests, and explicit approval gates
+  for push, hooks, CI, or full automation.
 ---
 
 # Safe Project Improvement System

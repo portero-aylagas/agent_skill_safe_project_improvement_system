@@ -34,8 +34,8 @@ Use these user-facing audit families in reports and backlog items:
   integration tests for important module wiring, and avoidance of brittle
   low-value tests.
 - Documentation: public module/class/function docstrings, comments that reduce
-  cognitive load, clear run command, sample input, expected output, limitations,
-  and fallback behavior when needed for review or demo.
+  cognitive load, clear run command, representative input, expected output,
+  limitations, and fallback behavior when needed for review or handoff.
 - Process evidence: setup, run reports, commit/PR evidence, known limitations,
   and rejection of fake issue references or placeholder metadata.
 
@@ -49,8 +49,11 @@ Use these user-facing audit families in reports and backlog items:
 - Prompt technique: zero-shot, few-shot, or structured output chosen deliberately.
 - Determinism: configurable temperature, stable fake-client tests.
 - Failure modes: rate limits, timeouts, empty responses, malformed JSON.
-- Evaluation scaffolding: representative fixtures, expected output properties,
-  edge cases, and live evaluation kept separate from normal verification.
+- AI evaluation and testing: deterministic fake-client tests, representative
+  fixtures, structured output validation, expected output properties,
+  malformed/empty response cases, prompt-injection cases where relevant,
+  trace/state checks for workflows, and live/model evaluation kept separate from
+  normal verification.
 - Cost and safety: token limits, retries, step caps, opt-in high-cost modes,
   visible limits, and logging without sensitive data.
 

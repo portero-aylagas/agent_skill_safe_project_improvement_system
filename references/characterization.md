@@ -66,6 +66,11 @@ class FakeChatClient:
 
 Avoid tests that need real credentials, network access, or paid services.
 
+For AI-integrated behavior, characterization should prefer stable observable
+properties over exact free-text snapshots: rendered prompt sections, schema
+fields, retrieved source IDs, tool-call traces, state transitions, required
+sections, and forbidden placeholders.
+
 ## Manual Checklist Template
 
 ```text

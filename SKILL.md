@@ -81,6 +81,8 @@ or multiple audit areas drive patch selection.
 - Do not push, install hooks, or add strict CI unless explicitly authorized.
 - Use fake clients/mocks for AI/API tests.
 - Normal verification must not require live API keys.
+- Keep live/model evaluations separate from normal verification unless
+  explicitly approved.
 - Distinguish characterization tests, patch tests, regression tests, smoke
   tests, and full verification.
 - Review Mode, audit outputs, persistent backlog outputs, and run reports with
@@ -102,10 +104,11 @@ Deep audit references are optional. In review mode, load
 `references/engineering-audits.md` for software engineering quality reviews,
 including deeper general software testing strategy. Load
 `references/ai-workflow-audits.md` for AI System Audits: AI Software
-Architecture, prompts, APIs, RAG, tools, agents, speech, cost, evaluation, and
-multi-step AI/tool automation. Use `references/ai-integration-quality.md` as
-extra implementation guidance when working directly on model/provider, prompt,
-RAG, or evaluation code. Load both engineering and AI System references only
+Architecture, prompts, APIs, RAG, tools, agents, speech, cost, AI evaluation and
+testing, and multi-step AI/tool automation. Use
+`references/ai-integration-quality.md` as extra implementation guidance when
+working directly on model/provider, prompt, RAG, agent/tool workflow, or AI
+evaluation/testing code. Load both engineering and AI System references only
 when the repository clearly has both general software architecture risks and
 AI-system-specific risks. Do not load deep audit references in safe refactor mode unless the patch directly touches that area.
 
@@ -120,12 +123,12 @@ AI-system-specific risks. Do not load deep audit references in safe refactor mod
   documentation, hygiene, UI separation, software delivery testing, or security
   checks.
 - `references/ai-workflow-audits.md`: read when review mode needs deeper prompt,
-  AI Software Architecture, structured output, RAG, agent/tool, speech, cost, or
-  workflow automation checks under `AI System Audits`.
+  AI Software Architecture, structured output, RAG, agent/tool, speech, cost, AI
+  evaluation/testing, or workflow automation checks under `AI System Audits`.
 - `references/patch-policy.md`: read before making code changes.
 - `references/testing-strategy.md`: read when adding or repairing verification.
 - `references/ai-integration-quality.md`: read for prompts, providers, APIs,
-  RAG, tools, agents, or evaluation.
+  RAG, tools, agents, or AI evaluation/testing.
 - `references/branching-ci-hooks.md`: read only for explicit branch, hook, CI,
   commit, push, or full automation requests.
 

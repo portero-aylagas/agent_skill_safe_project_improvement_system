@@ -137,26 +137,54 @@ Return:
 - minimal improvements
 - what would be over-engineering
 
-## AI Evaluation Scaffolding
+## AI Evaluation And Testing
 
 Check:
 
-- representative fixtures exist where AI output quality matters
-- expected output properties are documented
-- malformed, empty, and edge cases are tested where appropriate
-- live evaluation is separate from normal verification
-- subjective output quality has manual review notes or lightweight criteria
-  where needed
-- evaluation expectations are proportional to the project and do not require a
-  heavy platform by default
+- model-dependent behaviors are inventoried before choosing tests
+- deterministic fake-client tests cover provider failures, parser behavior,
+  prompt builders, workflow control, and other AI-adjacent behavior
+- fixture-based evaluations cover representative inputs, expected fields,
+  required sections, forbidden claims, source IDs, and edge cases
+- optional live/model evaluations are explicit opt-ins and separate from normal
+  verification
+- structured outputs are validated for required fields, types, malformed
+  responses, empty responses, partial responses, and contradictory responses
+- RAG retrieval and grounding checks use retrieval fixtures, expected source
+  IDs, no-match cases, and unsupported-claim checks where relevant
+- agent/tool workflows are checked with fake tools, fake model decisions,
+  trace assertions, or state transition assertions where relevant
+- prompt-injection or hostile document inputs are considered where user content
+  or retrieved content can influence instructions
+- cost and latency risks are visible for multi-call workflows
+- evaluation results are comparable between versions through fixtures, saved
+  outputs, manual review notes, explicit rubrics, or scoring results
+- optional external evaluation platforms, such as LangSmith or OpenAI Evals,
+  are considered only when the project has representative examples, clear
+  criteria, repeated model-dependent behavior, and a need to compare results
+  over time
+- LangSmith is treated as optional observability/evaluation tooling for
+  datasets, experiment comparison, trace inspection, LLM-as-judge scoring,
+  human review, cost/latency/token visibility, or online monitoring, not as a
+  replacement for local deterministic tests
+- claims about real model quality are backed by a real-model evaluation,
+  human-reviewed saved output, approved fixture/golden output, or explicit
+  scoring/rubric result
+- evaluation expectations are proportional to the current project and do not
+  require live API keys, network access, paid services, or a heavy platform for
+  normal verification
 
 Return:
 
-- current fixture and evaluation coverage
-- expected output properties or quality criteria
-- missing edge cases
-- normal verification versus live evaluation boundary
-- smallest useful evaluation smoke test or manual review checklist
+- AI behavior inventory
+- current AI test/eval surface
+- deterministic tests to add
+- fixture-based evaluations to add
+- optional live/model evaluations
+- whether optional external evaluation tracking is justified
+- risks not worth testing yet
+- first safe AI testing/evaluation patch
+- what would be over-engineering
 
 ## Agents And Tools
 

@@ -194,7 +194,7 @@ multi-step AI automation.
 | Structured Output | Check whether model output should be validated JSON/schema instead of fragile free text. |
 | LLM/API Integration | Review provider boundaries, credentials, model settings, retries, timeouts, token limits, and fake-client testability. |
 | RAG And Retrieval | Check document loading, chunking, embeddings, retrieval quality, empty-result behavior, and fixture-based evaluation. |
-| AI Evaluation Scaffolding | Check representative fixtures, expected output properties, edge cases, live-eval separation, and lightweight manual criteria where useful. |
+| AI Evaluation And Testing | Check model-dependent behavior with deterministic fake-client tests, fixture-based evaluations, structured output validation, RAG grounding checks, agent/tool workflow checks, and optional live/model evals kept separate from normal verification. |
 | Agents And Tools | Review whether an agent is justified, whether tools have clear names/inputs/outputs, and how failures are recovered. |
 | Workflow Automation | Check multi-step AI/tool flows: triggers, idempotency, retries, failure branches, state transitions, approvals, concurrent runs, logs, run IDs, recovery, and reports. |
 | Speech Pipelines | Review audio loading, transcription prompts, chunking, timestamps, generated audio validation, and safe output naming. |

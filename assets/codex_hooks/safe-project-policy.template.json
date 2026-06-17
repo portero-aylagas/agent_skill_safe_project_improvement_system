@@ -1,0 +1,43 @@
+{
+  "enabled": true,
+  "mode": "local_safe_refactor",
+  "verification_command": "make verify",
+  "minimum_inspection_evidence": 2,
+  "required_inspection_anchors": [
+    "README",
+    "pyproject.toml"
+  ],
+  "protected_paths": [
+    ".env*",
+    "**/secrets.*",
+    "**/*secret*",
+    "pyproject.toml",
+    "requirements*.txt",
+    "uv.lock",
+    "poetry.lock"
+  ],
+  "allowed_approval_gates": {
+    "commits": false,
+    "pushes": false,
+    "branch_changes": false,
+    "hook_installation": false,
+    "ci_changes": false,
+    "live_service_commands": false,
+    "protected_path_edits": false
+  },
+  "live_service_env_vars": [
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "AWS_ACCESS_KEY_ID",
+    "GOOGLE_API_KEY"
+  ],
+  "forbidden_live_service_commands": [
+    "openai ",
+    "aws ",
+    "gcloud ",
+    "curl https://api.",
+    "wget https://api."
+  ],
+  "audit_log": ".codex/safe-project-audit.jsonl",
+  "state_file": ".codex/safe-project-session-state.json"
+}

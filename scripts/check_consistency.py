@@ -27,7 +27,13 @@ REQUIRED_PATHS = [
     "references/patch-policy.md",
     "references/testing-strategy.md",
     "references/ai-integration-quality.md",
+    "references/agent-runtime-hooks.md",
     "assets/AGENTS.template.md",
+    "assets/codex_hooks/__init__.py",
+    "assets/codex_hooks/codex-config-snippet.template.toml",
+    "assets/codex_hooks/gitignore.template",
+    "assets/codex_hooks/safe-project-policy.template.json",
+    "assets/codex_hooks/safe_project_hook.py",
     "assets/Makefile.template",
     "assets/behavior-inventory-template.md",
     "assets/development-skill-note.template.md",
@@ -40,6 +46,7 @@ REQUIRED_PATHS = [
     "examples/review-mode.md",
     "examples/local-safe-refactor.md",
     "examples/install-verification.md",
+    "tests/test_safe_project_hook.py",
 ]
 
 WORKFLOW_DOCS = [
@@ -129,6 +136,18 @@ DEEP_AUDIT_REQUIREMENTS = [
     "safe refactor mode unless the patch directly",
     "Prompt technique: zero-shot, few-shot, or structured output chosen deliberately.",
     "UI/backend separation: callbacks validate inputs and call clean backend",
+]
+
+RUNTIME_HOOK_REQUIREMENTS = [
+    "Codex lifecycle hooks enforce observable agent-session actions.",
+    "Hooks are not a complete security boundary.",
+    "unified execution paths may not always",
+    "`assets/codex_hooks/`",
+    "`codex_hooks` as a stable feature",
+    "[[hooks.PreToolUse]]",
+    "type = \"command\"",
+    "Hybrid Mode or Vendored Skill Mode",
+    "reliably enforce target-repo",
 ]
 
 
@@ -403,6 +422,39 @@ def check_agents_template_requirements() -> list[str]:
     return errors
 
 
+def check_runtime_hook_requirements() -> list[str]:
+    """Check that portable runtime hook guidance and templates stay present.
+
+    Returns:
+        Human-readable consistency errors.
+    """
+    reference = read_text("references/agent-runtime-hooks.md")
+    config_template = read_text("assets/codex_hooks/codex-config-snippet.template.toml")
+    policy_template = read_text("assets/codex_hooks/safe-project-policy.template.json")
+    errors = []
+    for requirement in RUNTIME_HOOK_REQUIREMENTS:
+        if requirement not in reference and requirement not in config_template:
+            errors.append(f"runtime hook guidance missing requirement: {requirement}")
+    try:
+        import json
+
+        policy = json.loads(policy_template)
+    except ValueError as error:
+        errors.append(f"runtime hook policy template invalid JSON: {error}")
+    else:
+        for key in (
+            "mode",
+            "verification_command",
+            "protected_paths",
+            "allowed_approval_gates",
+            "audit_log",
+            "state_file",
+        ):
+            if key not in policy:
+                errors.append(f"runtime hook policy template missing key: {key}")
+    return errors
+
+
 def main() -> int:
     """Run all repository consistency checks.
 
@@ -423,6 +475,7 @@ def main() -> int:
     errors.extend(check_deep_audit_requirements())
     errors.extend(check_agent_policy())
     errors.extend(check_agents_template_requirements())
+    errors.extend(check_runtime_hook_requirements())
 
     if errors:
         print("Consistency check failed:")

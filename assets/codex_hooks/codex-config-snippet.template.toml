@@ -1,0 +1,31 @@
+# Verified against OpenAI Codex CLI config schema on 2026-06-17:
+# openai/codex `codex-rs/config/src/hook_config.rs` defines
+# [[hooks.PreToolUse]] matcher groups with command handlers shaped as:
+# hooks = [{ type = "command", command = "...", timeout = N }]
+#
+# Copy this into ~/.codex/config.toml or a trusted project .codex/config.toml,
+# and adjust the repository path before enabling it.
+
+[[hooks.SessionStart]]
+matcher = "*"
+hooks = [
+  { type = "command", command = "python assets/codex_hooks/safe_project_hook.py --event SessionStart", timeout = 10, statusMessage = "Starting safe-project policy session" }
+]
+
+[[hooks.PreToolUse]]
+matcher = "*"
+hooks = [
+  { type = "command", command = "python assets/codex_hooks/safe_project_hook.py --event PreToolUse", timeout = 10, statusMessage = "Checking safe-project policy" }
+]
+
+[[hooks.PostToolUse]]
+matcher = "*"
+hooks = [
+  { type = "command", command = "python assets/codex_hooks/safe_project_hook.py --event PostToolUse", timeout = 10, statusMessage = "Recording safe-project audit evidence" }
+]
+
+[[hooks.Stop]]
+matcher = "*"
+hooks = [
+  { type = "command", command = "python assets/codex_hooks/safe_project_hook.py --event Stop", timeout = 10, statusMessage = "Checking safe-project session completion" }
+]

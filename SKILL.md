@@ -29,6 +29,10 @@ guidance install, or from a vendored full copy under a target repository such as
 `skills/safe_project_improvement_system/`.
 
 Installing a few templates is not the same as vendoring the full skill bundle.
+When a target repository needs enforcement instead of guidance only, prefer
+Hybrid Mode or Vendored Skill Mode with the portable hook bundle in
+`assets/codex_hooks/`. External Reference Mode can guide an agent, but it cannot
+reliably enforce target-repo behavior.
 
 If the target repository already has `AGENTS.md`, `Makefile`, `verify.sh`, or
 similar local files, merge carefully instead of overwriting them.
@@ -131,6 +135,8 @@ AI-system-specific risks. Do not load deep audit references in safe refactor mod
   RAG, tools, agents, or AI evaluation/testing.
 - `references/branching-ci-hooks.md`: read only for explicit branch, hook, CI,
   commit, push, or full automation requests.
+- `references/agent-runtime-hooks.md`: read only when adding portable Codex
+  lifecycle hook enforcement for a target repository.
 
 ## Implementation Definition Of Done
 
@@ -153,6 +159,8 @@ Use `assets/` as project templates, adapting them to the target repository:
 - `pre-commit-config.template.yaml`: low-risk hooks with optional ruff.
 - `github-actions-verify.template.yaml`: CI template that runs `make verify`
   without live secrets.
+- `codex_hooks/`: portable Codex lifecycle hook handler, policy template, config
+  snippet, and ignored audit/state path template.
 - `behavior-inventory-template.md`: behavior characterization worksheet.
 - `patch-backlog-template.md`: prioritized improvement backlog.
 - `run-report-template.md`: required audit trail for full automation and

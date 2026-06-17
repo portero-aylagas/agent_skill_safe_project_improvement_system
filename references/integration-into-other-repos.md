@@ -10,6 +10,10 @@ another repository.
 Use the skill from its original repository when the agent can read both
 repositories in the same workspace.
 
+This mode can guide behavior, but it cannot reliably enforce target-repo
+behavior because repo-local hook configuration, policy, and audit state are not
+installed in the target repository.
+
 ### Repo-Local Guidance Mode
 
 Copy only a small subset of templates such as `AGENTS.md`, `Makefile`, and
@@ -28,10 +32,25 @@ skills/safe_project_improvement_system/
 Use this when the target repository needs traceability or local availability for
 future agent sessions.
 
+Use this mode when portable Codex lifecycle hook enforcement should travel with
+the target repository.
+
 ### Hybrid Mode
 
 Keep the full skill external while also adding small repo-local instructions in
 the target repository.
+
+Use this mode when the target repository needs local enforcement policy and
+hooks, but the full reference bundle can stay external.
+
+## Optional Enforcement Layer
+
+For enforcement, copy or vendor the portable bundle from
+`assets/codex_hooks/`, then adapt `.codex/safe-project-policy.json` in the
+target repository. Read `references/agent-runtime-hooks.md` before enabling it.
+
+Do not install hooks automatically. Hook installation changes local agent
+behavior and must be an explicit target-repository decision.
 
 ## Native Skill Boundary
 

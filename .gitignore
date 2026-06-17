@@ -224,3 +224,7 @@ __marimo__/
 .vscode/
 .env.codex/
 .agents/
+
+# Safe project hook runtime state for target repositories.
+.codex/safe-project-audit.jsonl
+.codex/safe-project-session-state.json

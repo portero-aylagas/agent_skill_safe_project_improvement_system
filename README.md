@@ -33,6 +33,11 @@ Use the smallest adoption mode that fits the target repository:
 - **Hybrid Mode**: keep this full bundle external while adding lightweight local
   instructions in the target repo.
 
+Use Hybrid Mode or Vendored Skill Mode when you want the optional enforcement
+layer. External Reference Mode can guide an agent, but it cannot reliably
+enforce target-repo behavior because the hook handler, policy, and Codex config
+are not local to the repository being changed.
+
 Vendoring this folder does not automatically register a native skill in every
 coding tool. The practical requirements are that the files are present, local
 instructions point to `SKILL.md`, and the prompt explicitly says to use the
@@ -233,9 +238,13 @@ beginner repos without a dependency convention, adding
 - `references/testing-strategy.md`: verification and test roles.
 - `references/patch-policy.md`: patch size, risk, and split criteria.
 - `references/integration-into-other-repos.md`: adoption modes and boundaries.
+- `references/agent-runtime-hooks.md`: optional Codex lifecycle hook enforcement
+  layer for target repositories.
 - `assets/AGENTS.template.md`: project-local agent rules.
 - `assets/Makefile.template` and `assets/verify.sh.template`: minimal local
   verification.
+- `assets/codex_hooks/`: portable hook handler, repo-local policy template,
+  Codex config snippet, and ignored audit/state path template.
 - `assets/development-skill-note.template.md`: note for repositories that need
   to document this system as a development/support skill.
 - `assets/behavior-inventory-template.md`: worksheet for risky changes.

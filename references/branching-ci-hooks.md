@@ -37,6 +37,11 @@ Start with low-risk hooks only:
 Make formatters and strict linters opt-in unless the project already uses them.
 Installing hooks changes local developer behavior, so ask first.
 
+Git/pre-commit hooks are separate from Codex lifecycle hooks. Git hooks catch
+low-level local file hygiene, while Codex hooks can block observable agent tool
+actions before or during a session. Use `references/agent-runtime-hooks.md` for
+the portable Codex hook enforcement layer.
+
 ## CI
 
 Default CI should run:

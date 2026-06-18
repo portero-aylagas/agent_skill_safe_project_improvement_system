@@ -74,6 +74,10 @@ Do not blindly overwrite these files in the target repository:
 
 Merge or adapt carefully.
 
+The helper script `scripts/install_templates.py` can preview selected
+adoption templates and apply only missing files. It leaves existing files in
+place and prints merge diffs when it encounters a conflict.
+
 ## Recommended Target-Repo Wording
 
 When this system is used only to help develop another project, describe it as:

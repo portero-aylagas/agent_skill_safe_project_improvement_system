@@ -38,6 +38,10 @@ layer. External Reference Mode can guide an agent, but it cannot reliably
 enforce target-repo behavior because the hook handler, policy, and Codex config
 are not local to the repository being changed.
 
+For repo-local adoption, use `scripts/install_templates.py` to preview or apply
+selected safe templates into a target repository. It writes only missing files
+and prints merge diffs when a destination already exists.
+
 Vendoring this folder does not automatically register a native skill in every
 coding tool. The practical requirements are that the files are present, local
 instructions point to `SKILL.md`, and the prompt explicitly says to use the

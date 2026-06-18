@@ -28,6 +28,22 @@ SECRET_VALUE_PATTERN = re.compile(
 )
 MAX_AUDIT_VALUE_CHARS = 600
 MAX_AUDIT_LIST_ITEMS = 20
+SUPPORTED_APPROVAL_GATES = {
+    "commits",
+    "pushes",
+    "branch_changes",
+    "hook_installation",
+    "ci_changes",
+    "live_service_commands",
+    "protected_path_edits",
+}
+APPROVAL_PATTERN = re.compile(
+    r"^\s*SAFE-PROJECT\s+APPROVE\s+"
+    r"(?P<gate>[a-z_]+)"
+    r"(?:\s+\[(?P<scope>until=session)\])?"
+    r"\s+REASON:\s+(?P<reason>.+?)\s*$",
+    re.IGNORECASE | re.DOTALL,
+)
 
 
 @dataclass(frozen=True)
@@ -36,6 +52,28 @@ class Decision:
 
     allowed: bool
     reason: str = ""
+
+
+@dataclass(frozen=True)
+class CommandSegment:
+    """One parsed shell command segment."""
+
+    words: list[str]
+    separator: str = ""
+
+
+@dataclass(frozen=True)
+class CommandAnalysis:
+    """Conservative classification for one shell command."""
+
+    segments: list[CommandSegment]
+    paths: list[str]
+    gates: set[str]
+    write_action: bool = False
+    read_action: bool = False
+    live_service: bool = False
+    risky_unknown: bool = False
+    parse_error: str = ""
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -183,9 +221,11 @@ def session_state(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any
             "verification_after_write": False,
             "event_index": 0,
             "failures": [],
+            "approvals": [],
             "started_at": now_iso(),
         },
     )
+    session.setdefault("approvals", [])
     session["event_index"] = int(session.get("event_index", 0)) + 1
     return session
 
@@ -204,6 +244,8 @@ def handle_event(
         return Decision(True)
     if event_name == "PreToolUse":
         return evaluate_pre_tool(policy, session, event)
+    if event_name == "UserPromptSubmit":
+        return record_user_prompt_approval(session, event)
     if event_name == "PostToolUse":
         record_post_tool(policy, session, event)
         return Decision(True)
@@ -226,46 +268,123 @@ def evaluate_pre_tool(
     tool_name = str(event.get("tool_name") or "")
     tool_input = event.get("tool_input") or {}
     command = extract_command(tool_input)
-    changed_paths = extract_candidate_paths(tool_name, tool_input, command)
-    write_action = is_write_action(tool_name, tool_input, command)
-    gates = policy["allowed_approval_gates"]
+    analysis = analyze_command(command, policy) if command else empty_command_analysis()
+    changed_paths = extract_candidate_paths(tool_name, tool_input, command, analysis)
+    write_action = is_write_action(tool_name, tool_input, command, analysis)
 
     if policy["mode"] == "review" and write_action:
         return Decision(False, "Review Mode blocks file and workspace writes.")
     if write_action and not inspection_gate_satisfied(policy, session):
         return Decision(False, "Writes are blocked until required inspection evidence exists.")
     if command:
-        blocked_command = command_policy_decision(command, gates)
+        blocked_command = command_policy_decision(command, policy, session, analysis)
         if not blocked_command.allowed:
             return blocked_command
-        if is_live_service_command(command, policy) and not gates["live_service_commands"]:
+        if analysis.live_service and not gate_allowed(policy, session, "live_service_commands"):
             return Decision(False, "Live-service commands require explicit policy approval.")
-    if touches_ci(changed_paths) and not gates["ci_changes"]:
+    if touches_ci(changed_paths) and not gate_allowed(policy, session, "ci_changes"):
         return Decision(False, "CI file changes require explicit policy approval.")
-    if touches_hook_installation(changed_paths, command) and not gates["hook_installation"]:
+    if touches_hook_installation(changed_paths, command, analysis) and not gate_allowed(
+        policy, session, "hook_installation"
+    ):
         return Decision(False, "Hook installation or hook config changes require approval.")
-    if touches_protected_path(changed_paths, policy) and not gates["protected_path_edits"]:
+    if touches_protected_path(changed_paths, policy) and not gate_allowed(
+        policy, session, "protected_path_edits"
+    ):
         return Decision(False, "Protected path edits require explicit policy approval.")
     return Decision(True)
 
 
-def command_policy_decision(command: str, gates: dict[str, bool]) -> Decision:
-    """Return a decision for shell commands with explicit approval gates."""
-    words = split_command(command)
-    if words[:2] == ["git", "commit"] and not gates["commits"]:
-        return Decision(False, "Git commits require explicit policy approval.")
-    if words[:2] == ["git", "push"] and not gates["pushes"]:
-        return Decision(False, "Git pushes require explicit policy approval.")
-    branch_commands = {
-        ("git", "checkout"),
-        ("git", "switch"),
-        ("git", "branch"),
-        ("git", "rebase"),
-        ("git", "merge"),
-        ("git", "reset"),
+def record_user_prompt_approval(session: dict[str, Any], event: dict[str, Any]) -> Decision:
+    """Record session-scoped approval gates from an explicit user prompt."""
+    prompt = extract_prompt(event)
+    if not prompt:
+        return Decision(True)
+    match = APPROVAL_PATTERN.match(prompt)
+    if not match:
+        return Decision(True)
+    gate = match.group("gate").lower()
+    scope = match.group("scope") or "until=session"
+    reason = match.group("reason").strip()
+    if gate not in SUPPORTED_APPROVAL_GATES or scope != "until=session" or not reason:
+        return Decision(True)
+    approval = {
+        "gate": gate,
+        "reason": reason,
+        "timestamp": now_iso(),
+        "event_index": session.get("event_index", 0),
+        "scope": "session",
     }
-    if tuple(words[:2]) in branch_commands and not gates["branch_changes"]:
+    session.setdefault("approvals", []).append(approval)
+    return Decision(True, f"Recorded session approval for {gate}.")
+
+
+def extract_prompt(event: dict[str, Any]) -> str:
+    """Extract a user prompt from known Codex hook payload shapes."""
+    for key in ("prompt", "user_prompt", "message"):
+        value = event.get(key)
+        if isinstance(value, str):
+            return value
+    tool_input = event.get("tool_input")
+    if isinstance(tool_input, dict):
+        for key in ("prompt", "user_prompt", "message"):
+            value = tool_input.get(key)
+            if isinstance(value, str):
+                return value
+    return ""
+
+
+def gate_allowed(
+    policy: dict[str, Any], session: dict[str, Any], gate: str
+) -> bool:
+    """Return whether static policy or current session approval allows a gate."""
+    if bool(policy["allowed_approval_gates"].get(gate)):
+        return True
+    for approval in session.get("approvals", []):
+        if (
+            isinstance(approval, dict)
+            and approval.get("gate") == gate
+            and approval.get("scope") == "session"
+        ):
+            return True
+    return False
+
+
+def command_policy_decision(
+    command: str,
+    policy: dict[str, Any],
+    session: dict[str, Any],
+    analysis: CommandAnalysis | None = None,
+) -> Decision:
+    """Return a decision for shell commands with explicit approval gates."""
+    classified = analysis or analyze_command(command, policy)
+    if "commits" in classified.gates and not gate_allowed(policy, session, "commits"):
+        return Decision(False, "Git commits require explicit policy approval.")
+    if "pushes" in classified.gates and not gate_allowed(policy, session, "pushes"):
+        return Decision(False, "Git pushes require explicit policy approval.")
+    if "branch_changes" in classified.gates and not gate_allowed(
+        policy, session, "branch_changes"
+    ):
         return Decision(False, "Git branch or history changes require explicit approval.")
+    if "hook_installation" in classified.gates and not gate_allowed(
+        policy, session, "hook_installation"
+    ):
+        return Decision(False, "Hook installation or hook config changes require approval.")
+    if "ci_changes" in classified.gates and not gate_allowed(policy, session, "ci_changes"):
+        return Decision(False, "CI file changes require explicit policy approval.")
+    if "protected_path_edits" in classified.gates and not gate_allowed(
+        policy, session, "protected_path_edits"
+    ):
+        return Decision(False, "Protected path edits require explicit policy approval.")
+    if classified.risky_unknown and not any(
+        gate_allowed(policy, session, gate) for gate in classified.gates
+    ):
+        detail = f" ({classified.parse_error})" if classified.parse_error else ""
+        return Decision(
+            False,
+            "Complex or risky shell commands require an applicable approval gate"
+            f"{detail}.",
+        )
     return Decision(True)
 
 
@@ -278,10 +397,12 @@ def record_post_tool(
     tool_response = event.get("tool_response") or {}
     command = extract_command(tool_input)
 
-    if is_read_action(tool_name, tool_input, command):
+    analysis = analyze_command(command, policy) if command else empty_command_analysis()
+
+    if is_read_action(tool_name, tool_input, command, analysis):
         session["inspection_events"] = int(session.get("inspection_events", 0)) + 1
         update_inspection_anchors(policy, session, tool_input, command)
-    if is_write_action(tool_name, tool_input, command):
+    if is_write_action(tool_name, tool_input, command, analysis):
         session["write_count"] = int(session.get("write_count", 0)) + 1
         session["last_write_index"] = session.get("event_index", 0)
         session["verification_after_write"] = False
@@ -318,7 +439,12 @@ def extract_command(tool_input: Any) -> str:
     return ""
 
 
-def extract_candidate_paths(tool_name: str, tool_input: Any, command: str) -> list[str]:
+def extract_candidate_paths(
+    tool_name: str,
+    tool_input: Any,
+    command: str,
+    analysis: CommandAnalysis | None = None,
+) -> list[str]:
     """Extract likely file paths from tool input for path-based policy checks."""
     paths: list[str] = []
     if isinstance(tool_input, dict):
@@ -332,7 +458,8 @@ def extract_candidate_paths(tool_name: str, tool_input: Any, command: str) -> li
     if "apply_patch" in tool_name and isinstance(tool_input, str):
         paths.extend(extract_paths_from_patch(tool_input))
     if command:
-        paths.extend(token for token in split_command(command) if looks_like_path(token))
+        classified = analysis or analyze_command(command, apply_policy_defaults({}))
+        paths.extend(classified.paths)
     return normalize_paths(paths)
 
 
@@ -353,48 +480,36 @@ def extract_paths_from_patch(patch: str) -> list[str]:
     return paths
 
 
-def is_write_action(tool_name: str, tool_input: Any, command: str) -> bool:
+def is_write_action(
+    tool_name: str,
+    tool_input: Any,
+    command: str,
+    analysis: CommandAnalysis | None = None,
+) -> bool:
     """Return whether a tool call appears to mutate files, git state, or config."""
     lowered_tool = tool_name.lower()
     if "apply_patch" in lowered_tool or "update_file" in lowered_tool:
         return True
     if not command:
         return False
-    lowered = command.lower()
-    write_markers = [
-        ">",
-        ">>",
-        " tee ",
-        "sed -i",
-        "python -c",
-        "python3 -c",
-        "mkdir",
-        "touch",
-        "rm ",
-        "mv ",
-        "cp ",
-        "git commit",
-        "git push",
-        "git checkout",
-        "git switch",
-        "git branch",
-        "git reset",
-        "git merge",
-        "git rebase",
-        "pre-commit install",
-    ]
-    return any(marker in f" {lowered} " for marker in write_markers)
+    classified = analysis or analyze_command(command, apply_policy_defaults({}))
+    return classified.write_action
 
 
-def is_read_action(tool_name: str, tool_input: Any, command: str) -> bool:
+def is_read_action(
+    tool_name: str,
+    tool_input: Any,
+    command: str,
+    analysis: CommandAnalysis | None = None,
+) -> bool:
     """Return whether a tool call appears to inspect the repository."""
     lowered_tool = tool_name.lower()
     if any(name in lowered_tool for name in ("open", "fetch", "search", "read")):
         return True
     if not command:
         return False
-    words = split_command(command)
-    return bool(words and words[0] in {"ls", "sed", "rg", "find", "cat", "git", "pwd"})
+    classified = analysis or analyze_command(command, apply_policy_defaults({}))
+    return classified.read_action
 
 
 def inspection_gate_satisfied(policy: dict[str, Any], session: dict[str, Any]) -> bool:
@@ -443,10 +558,14 @@ def touches_ci(paths: list[str]) -> bool:
     return any(path.startswith(".github/workflows/") for path in paths)
 
 
-def touches_hook_installation(paths: list[str], command: str) -> bool:
+def touches_hook_installation(
+    paths: list[str], command: str, analysis: CommandAnalysis | None = None
+) -> bool:
     """Return whether paths or command indicate hook installation/config changes."""
     hook_paths = (".git/hooks/", ".pre-commit-config.yaml", "pre-commit-config.yaml")
     if any(path.startswith(hook_paths) for path in paths):
+        return True
+    if analysis and "hook_installation" in analysis.gates:
         return True
     return "pre-commit install" in command.lower()
 
@@ -466,6 +585,175 @@ def is_live_service_command(command: str, policy: dict[str, Any]) -> bool:
     if any(env_var in command for env_var in policy.get("live_service_env_vars", [])):
         return True
     return any(token in lowered for token in ("curl ", "wget ", "openai ", "aws ", "gcloud "))
+
+
+def empty_command_analysis() -> CommandAnalysis:
+    """Return an empty command classification."""
+    return CommandAnalysis(segments=[], paths=[], gates=set())
+
+
+def analyze_command(command: str, policy: dict[str, Any]) -> CommandAnalysis:
+    """Classify a shell command into segments, candidate paths, and approval gates."""
+    segments, parse_error = split_command_segments(command)
+    paths: list[str] = []
+    gates: set[str] = set()
+    write_action = False
+    read_action = False
+    risky_unknown = bool(parse_error)
+    live_service = is_live_service_command(command, policy)
+    if live_service:
+        gates.add("live_service_commands")
+
+    for segment in segments:
+        words = segment.words
+        if not words:
+            continue
+        executable = Path(words[0]).name
+        if segment_has_complex_shell(command, words):
+            risky_unknown = True
+            write_action = True
+            gates.add("protected_path_edits")
+        paths.extend(word for word in words[1:] if looks_like_path(word))
+
+        if executable == "git":
+            read_action = True
+            if len(words) > 1:
+                subcommand = words[1]
+                if subcommand == "commit":
+                    gates.add("commits")
+                    write_action = True
+                elif subcommand == "push":
+                    gates.add("pushes")
+                    write_action = True
+                elif subcommand in {
+                    "checkout",
+                    "switch",
+                    "branch",
+                    "rebase",
+                    "merge",
+                    "reset",
+                }:
+                    gates.add("branch_changes")
+                    write_action = True
+                elif subcommand in {"add", "mv", "rm", "restore"}:
+                    write_action = True
+            continue
+
+        if executable == "pre-commit" and len(words) > 1 and words[1] == "install":
+            gates.add("hook_installation")
+            write_action = True
+            continue
+
+        if executable in {"tee", "touch", "mkdir", "rm", "mv", "cp", "install"}:
+            write_action = True
+            gates.add("protected_path_edits")
+            paths.extend(word for word in words[1:] if not word.startswith("-"))
+        elif executable in {"sed"} and "-i" in words:
+            write_action = True
+            gates.add("protected_path_edits")
+        elif executable in {"python", "python3"} and "-c" in words:
+            if python_inline_code_writes(words):
+                write_action = True
+                risky_unknown = True
+                gates.add("protected_path_edits")
+        elif executable in {"ls", "rg", "find", "cat", "pwd", "sed", "nl", "wc"}:
+            read_action = True
+        else:
+            if command_segment_may_write(words):
+                write_action = True
+                risky_unknown = True
+                gates.add("protected_path_edits")
+
+    normalized_paths = normalize_paths(paths)
+    if touches_ci(normalized_paths):
+        gates.add("ci_changes")
+    if touches_hook_installation(normalized_paths, command):
+        gates.add("hook_installation")
+    if touches_protected_path(normalized_paths, policy):
+        gates.add("protected_path_edits")
+    return CommandAnalysis(
+        segments=segments,
+        paths=normalized_paths,
+        gates=gates,
+        write_action=write_action,
+        read_action=read_action,
+        live_service=live_service,
+        risky_unknown=risky_unknown,
+        parse_error=parse_error,
+    )
+
+
+def split_command_segments(command: str) -> tuple[list[CommandSegment], str]:
+    """Split shell command segments on common operators while respecting quotes."""
+    if re.search(r"(^|\s)(<<|<<<)", command):
+        return [CommandSegment(words=command.split())], "heredoc or here-string syntax"
+    if "$(" in command or "`" in command:
+        try:
+            words = shlex.split(command)
+        except ValueError as error:
+            words = command.split()
+            return [CommandSegment(words=words)], str(error)
+        return [CommandSegment(words=words)], "command substitution"
+
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|<>")
+    lexer.whitespace_split = True
+    try:
+        tokens = list(lexer)
+    except ValueError as error:
+        return [CommandSegment(words=command.split())], str(error)
+
+    segments: list[CommandSegment] = []
+    current: list[str] = []
+    separators = {";", "&&", "||", "|"}
+    redirect_tokens = {">", ">>", "<", "2>", "2>>", "&>"}
+    parse_error = ""
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token in separators:
+            if current:
+                segments.append(CommandSegment(words=current, separator=token))
+                current = []
+            index += 1
+            continue
+        if token in redirect_tokens:
+            parse_error = parse_error or "redirection"
+            current.append(token)
+            if index + 1 < len(tokens):
+                current.append(tokens[index + 1])
+                index += 2
+                continue
+        current.append(token)
+        index += 1
+    if current:
+        segments.append(CommandSegment(words=current))
+    return segments, parse_error
+
+
+def segment_has_complex_shell(command: str, words: list[str]) -> bool:
+    """Return whether parsed words include shell syntax this hook treats as risky."""
+    if "$(" in command or "`" in command:
+        return True
+    return any(word in {">", ">>", "<", "2>", "2>>", "&>"} for word in words)
+
+
+def python_inline_code_writes(words: list[str]) -> bool:
+    """Return whether a python -c payload appears to write files."""
+    try:
+        code = words[words.index("-c") + 1]
+    except (ValueError, IndexError):
+        return True
+    lowered = code.lower()
+    return any(
+        marker in lowered
+        for marker in ("open(", ".write(", "pathlib", "write_text(", "write_bytes(")
+    )
+
+
+def command_segment_may_write(words: list[str]) -> bool:
+    """Return whether an otherwise unknown segment contains obvious write markers."""
+    lowered = " ".join(words).lower()
+    return any(marker in lowered for marker in (" write", ".write(", "open("))
 
 
 def git_snapshot(cwd: Path) -> dict[str, Any]:
@@ -510,7 +798,7 @@ def append_audit(
         "tool_name": event.get("tool_name"),
         "allowed": decision.allowed,
         "reason": decision.reason,
-        "input": sanitize(event.get("tool_input")),
+        "input": sanitize(audit_input(event_name, event)),
     }
     with path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(record, sort_keys=True) + "\n")
@@ -534,6 +822,15 @@ def sanitize(value: Any) -> Any:
             return redacted[:MAX_AUDIT_VALUE_CHARS] + "...[truncated]"
         return redacted
     return value
+
+
+def audit_input(event_name: str, event: dict[str, Any]) -> Any:
+    """Return the relevant event input payload for sanitized audit storage."""
+    if event_name == "UserPromptSubmit":
+        prompt = extract_prompt(event)
+        if prompt:
+            return {"prompt": prompt}
+    return event.get("tool_input")
 
 
 def allow_output(event_name: str) -> dict[str, Any]:

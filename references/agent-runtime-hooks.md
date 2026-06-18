@@ -61,13 +61,19 @@ The audit and state files should be ignored by default:
 .codex/safe-project-session-state.json
 ```
 
+The handler resolves these paths inside the target repository at runtime. When
+the bundle is copied or vendored into another repo, approvals, audit entries,
+inspection counters, write counters, and git snapshots are written to that
+target repo's `.codex/` files, not to this support repository.
+
 ## Codex Config Shape
 
 The hook snippet syntax was checked against the installed Codex CLI and public
 OpenAI Codex source on 2026-06-17. The installed CLI reports
 `codex_hooks` as a stable feature. The public config schema defines event groups
 such as `[[hooks.SessionStart]]`, `[[hooks.PreToolUse]]`,
-`[[hooks.PostToolUse]]`, and `[[hooks.Stop]]`, each with command handlers:
+`[[hooks.PostToolUse]]`, `[[hooks.UserPromptSubmit]]`, and `[[hooks.Stop]]`,
+each with command handlers:
 
 ```toml
 [[hooks.PreToolUse]]
@@ -90,11 +96,52 @@ project-local hook config.
   writes, commits, pushes, branch changes, hook installation, CI changes,
   protected-path edits, destructive shell commands, and live-service commands
   without explicit policy approval.
+- `UserPromptSubmit`: record session-scoped approval gates from explicit user
+  prompts. Valid prompts use this exact shape:
+
+```text
+SAFE-PROJECT APPROVE <gate> [until=session] REASON: <reason>
+```
+
+Supported gates match `allowed_approval_gates`: `commits`, `pushes`,
+`branch_changes`, `hook_installation`, `ci_changes`,
+`live_service_commands`, and `protected_path_edits`. A valid prompt stores the
+gate, reason, timestamp, event index, and session scope in the current session
+state, then appends a sanitized audit entry. Malformed prompts do not grant
+approval. Session approvals do not edit static policy and expire with the Codex
+session.
 - `PostToolUse`: append sanitized audit events and update observed inspection,
   write, verification, and failure evidence.
 - `Stop`: record final git status and block/report incomplete sessions where
   writes or changed files exist without successful verification after the first
   write.
+
+## Approval Precedence
+
+For each approval gate, enforcement checks the target repo's static policy first
+and then the current session state. A static `true` value in
+`allowed_approval_gates` allows that gate for every session using that policy. A
+`SAFE-PROJECT APPROVE ... [until=session]` prompt allows only the named gate for
+the current Codex session. Approval for `commits` does not allow `pushes`,
+branch changes, hook installation, CI edits, live-service commands, or protected
+path edits.
+
+## Shell Command Classification
+
+`PreToolUse` classifies shell commands conservatively before execution. The
+classifier splits commands into segments across `;`, `&&`, `||`, and `|` while
+respecting shell quotes, then inspects each segment's executable and arguments.
+It recognizes git commits, pushes, branch/history operations, common file
+mutation commands, hook installation, CI paths, protected paths, and live-service
+commands.
+
+The classifier intentionally fails closed for shell forms that are hard to
+reason about in a dependency-free portable hook. Redirection, command
+substitution, heredoc and here-string syntax, unmatched quotes, inline Python
+file writes, and unknown complex write-like commands are treated as risky and
+blocked unless an applicable approval gate is active. This is a workflow
+guardrail, not a shell sandbox; `Stop` still runs `git status --short` as the
+final backstop for mutations the hook did not observe directly.
 
 ## Adoption Recommendation
 

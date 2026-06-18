@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
 
@@ -74,6 +76,17 @@ class SafeProjectHookTests(unittest.TestCase):
             "tool_response": response or {"exit_code": 0},
         }
 
+    def user_prompt_event(self, prompt: str, cwd: Path | None = None) -> dict:
+        """Build a `UserPromptSubmit` event."""
+        event = {
+            "hook_event_name": "UserPromptSubmit",
+            "session_id": "test",
+            "prompt": prompt,
+        }
+        if cwd is not None:
+            event["cwd"] = str(cwd)
+        return event
+
     def test_review_mode_blocks_file_writes(self) -> None:
         """Review Mode blocks observed write actions."""
         policy = self.base_policy()
@@ -127,6 +140,154 @@ class SafeProjectHookTests(unittest.TestCase):
                 decision = hook.evaluate_pre_tool(policy, session, event)
                 self.assertFalse(decision.allowed)
                 self.assertIn(expected.split()[0], decision.reason)
+
+    def test_user_prompt_approval_persists_to_state_and_audit(self) -> None:
+        """A valid approval prompt records session approval and sanitized audit."""
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            codex_dir = cwd / ".codex"
+            codex_dir.mkdir()
+            policy = self.base_policy()
+            (codex_dir / "safe-project-policy.json").write_text(
+                json.dumps(policy), encoding="utf-8"
+            )
+            event = self.user_prompt_event(
+                "SAFE-PROJECT APPROVE commits [until=session] REASON: release commit",
+                cwd,
+            )
+
+            stdin = sys.stdin
+            try:
+                sys.stdin = io.StringIO(json.dumps(event))
+                with redirect_stdout(io.StringIO()):
+                    exit_code = hook.main(["--event", "UserPromptSubmit"])
+            finally:
+                sys.stdin = stdin
+
+            self.assertEqual(exit_code, 0)
+            state = json.loads(
+                (codex_dir / "safe-project-session-state.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            approvals = state["sessions"]["test"]["approvals"]
+            self.assertEqual(approvals[0]["gate"], "commits")
+            self.assertEqual(approvals[0]["reason"], "release commit")
+            self.assertEqual(approvals[0]["scope"], "session")
+            audit = (codex_dir / "safe-project-audit.jsonl").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn("UserPromptSubmit", audit)
+            self.assertIn("Recorded session approval for commits", audit)
+
+    def test_malformed_approval_prompt_does_not_grant_gate(self) -> None:
+        """Malformed approval prompts are allowed as prompts but grant nothing."""
+        session = self.base_session()
+        event = self.user_prompt_event("SAFE-PROJECT APPROVE commits REASON")
+
+        decision = hook.handle_event(
+            Path.cwd(), self.base_policy(), {}, session, "UserPromptSubmit", event
+        )
+
+        self.assertTrue(decision.allowed)
+        self.assertEqual(session.get("approvals"), None)
+
+    def test_session_approval_allows_only_matching_gate(self) -> None:
+        """A session approval overlays only the matching static policy gate."""
+        policy = self.base_policy()
+        session = self.base_session()
+        hook.record_user_prompt_approval(
+            session,
+            self.user_prompt_event(
+                "SAFE-PROJECT APPROVE commits [until=session] REASON: local checkpoint"
+            ),
+        )
+
+        commit = hook.evaluate_pre_tool(
+            policy,
+            session,
+            self.pre_tool_event("exec_command", {"cmd": "git commit -m x"}),
+        )
+        push = hook.evaluate_pre_tool(
+            policy,
+            session,
+            self.pre_tool_event("exec_command", {"cmd": "git push"}),
+        )
+
+        self.assertTrue(commit.allowed)
+        self.assertFalse(push.allowed)
+        self.assertIn("pushes", push.reason)
+
+    def test_classifier_blocks_commit_then_push_without_matching_approvals(self) -> None:
+        """Segmented git commit and push commands require both approvals."""
+        policy = self.base_policy()
+        session = self.base_session()
+        hook.record_user_prompt_approval(
+            session,
+            self.user_prompt_event(
+                "SAFE-PROJECT APPROVE commits [until=session] REASON: local checkpoint"
+            ),
+        )
+        event = self.pre_tool_event(
+            "exec_command", {"cmd": "git commit -m x && git push"}
+        )
+
+        decision = hook.evaluate_pre_tool(policy, session, event)
+
+        self.assertFalse(decision.allowed)
+        self.assertIn("pushes", decision.reason)
+
+    def test_classifier_blocks_redirection(self) -> None:
+        """Shell redirection is treated as a risky file mutation."""
+        decision = hook.evaluate_pre_tool(
+            self.base_policy(),
+            self.base_session(),
+            self.pre_tool_event("exec_command", {"cmd": "echo x > file"}),
+        )
+
+        self.assertFalse(decision.allowed)
+
+    def test_classifier_blocks_inline_python_writes(self) -> None:
+        """Inline Python file writes are treated as risky shell mutations."""
+        decision = hook.evaluate_pre_tool(
+            self.base_policy(),
+            self.base_session(),
+            self.pre_tool_event(
+                "exec_command", {"cmd": "python -c \"open('x','w').write('y')\""}
+            ),
+        )
+
+        self.assertFalse(decision.allowed)
+
+    def test_classifier_blocks_pipe_to_tee(self) -> None:
+        """Pipes into tee are classified as file mutations."""
+        decision = hook.evaluate_pre_tool(
+            self.base_policy(),
+            self.base_session(),
+            self.pre_tool_event("exec_command", {"cmd": "cat file | tee out"}),
+        )
+
+        self.assertFalse(decision.allowed)
+
+    def test_classifier_blocks_unmatched_quotes(self) -> None:
+        """Unmatched shell quotes fail closed as complex commands."""
+        decision = hook.evaluate_pre_tool(
+            self.base_policy(),
+            self.base_session(),
+            self.pre_tool_event("exec_command", {"cmd": "echo 'unterminated"}),
+        )
+
+        self.assertFalse(decision.allowed)
+
+    def test_classifier_blocks_heredoc_like_input(self) -> None:
+        """Heredoc syntax fails closed as complex command input."""
+        decision = hook.evaluate_pre_tool(
+            self.base_policy(),
+            self.base_session(),
+            self.pre_tool_event("exec_command", {"cmd": "cat <<EOF\nx\nEOF"}),
+        )
+
+        self.assertFalse(decision.allowed)
 
     def test_verification_after_write_satisfies_stop_gate(self) -> None:
         """A successful verification command after a write clears Stop blocking."""
@@ -183,6 +344,7 @@ class SafeProjectHookTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         self.assertIn("[[hooks.PreToolUse]]", config)
+        self.assertIn("[[hooks.UserPromptSubmit]]", config)
         self.assertIn('type = "command"', config)
 
     def test_docs_mention_hook_limitations(self) -> None:

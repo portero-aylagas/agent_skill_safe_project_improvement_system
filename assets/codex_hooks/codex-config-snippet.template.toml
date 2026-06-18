@@ -24,6 +24,12 @@ hooks = [
   { type = "command", command = "python assets/codex_hooks/safe_project_hook.py --event PostToolUse", timeout = 10, statusMessage = "Recording safe-project audit evidence" }
 ]
 
+[[hooks.UserPromptSubmit]]
+matcher = "*"
+hooks = [
+  { type = "command", command = "python assets/codex_hooks/safe_project_hook.py --event UserPromptSubmit", timeout = 10, statusMessage = "Checking safe-project approval prompt" }
+]
+
 [[hooks.Stop]]
 matcher = "*"
 hooks = [

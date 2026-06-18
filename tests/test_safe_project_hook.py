@@ -651,6 +651,7 @@ class SafeProjectHookTests(unittest.TestCase):
         self.assertIn("[[hooks.PreToolUse]]", config)
         self.assertIn("[[hooks.UserPromptSubmit]]", config)
         self.assertIn('type = "command"', config)
+        self.assertIn(".venv/bin/python", config)
 
     def test_docs_mention_hook_limitations(self) -> None:
         """Runtime hook docs mention shell or unified execution limitations."""

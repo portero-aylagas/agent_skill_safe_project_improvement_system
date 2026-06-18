@@ -171,6 +171,8 @@ RUNTIME_HOOK_REQUIREMENTS = [
     "`codex_hooks` as a stable feature",
     "[[hooks.PreToolUse]]",
     "type = \"command\"",
+    ".venv/bin/python assets/codex_hooks/safe_project_hook.py",
+    ".codex/safe-project-workflow.json",
     "Hybrid Mode or Vendored Skill Mode",
     "reliably enforce target-repo",
 ]
@@ -497,6 +499,10 @@ def check_runtime_hook_requirements() -> list[str]:
             "allowed_approval_gates",
             "audit_log",
             "state_file",
+            "workflow_state_file",
+            "run_report",
+            "patch_backlog",
+            "require_durable_reports",
         ):
             if key not in policy:
                 errors.append(f"runtime hook policy template missing key: {key}")

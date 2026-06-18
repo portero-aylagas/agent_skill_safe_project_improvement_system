@@ -50,6 +50,55 @@ system.
 Do not blindly overwrite an existing `AGENTS.md`, `Makefile`, `verify.sh`, or
 `pyproject.toml`. Merge or adapt templates carefully.
 
+### Practical target-repo setup
+
+Start with local guidance and verification in the target repository:
+
+```text
+.venv/bin/python scripts/install_templates.py --target /path/to/target --preset repo-local
+.venv/bin/python scripts/install_templates.py --target /path/to/target --preset repo-local --apply
+```
+
+Add durable documentation artifacts when you want a review backlog, medium or
+high-risk refactor, or Full Automation run:
+
+```text
+.venv/bin/python scripts/install_templates.py --target /path/to/target --preset docs
+.venv/bin/python scripts/install_templates.py --target /path/to/target --preset docs --apply
+```
+
+For hook-enforced Full Automation, add the Codex hook bundle only after the
+target repo owner explicitly approves local hook enforcement:
+
+```text
+.venv/bin/python scripts/install_templates.py --target /path/to/target --preset codex-hooks
+.venv/bin/python scripts/install_templates.py --target /path/to/target --preset codex-hooks --apply
+```
+
+The `codex-hooks` preset installs the portable handler at
+`assets/codex_hooks/safe_project_hook.py`, the repo-local policy at
+`.codex/safe-project-policy.json`, and a trusted-project Codex config at
+`.codex/config.toml`. The config uses `.venv/bin/python`; create the target
+repo's `.venv` first or edit the config to the target repo's Python path.
+
+Use this progression for a typical refactor:
+
+1. Install `repo-local` templates and make `make verify` pass.
+2. Ask the agent for Review Mode if you need an audit or backlog.
+3. Install `docs` templates if findings, deferrals, or run evidence should be
+   durable.
+4. Use Local Safe Refactor Mode for one focused patch.
+5. Use Full Automation Mode only when branch, commit, push, PR, and CI follow-up
+   are explicitly approved.
+
+Hook-enforced Full Automation also needs `.codex/safe-project-workflow.json`.
+The agent should create it before edits with stable backlog item IDs such as
+`P001`, keep exactly one item active while patching, record verification before
+commit, and map each commit back to one item. `docs/run-report.md` and
+`docs/patch-backlog.md` must contain the required headings and the same item
+IDs. The workflow state file is local session state; the report and backlog are
+durable process artifacts.
+
 ### 2. Choose the mode
 
 | Mode | Use when | What the agent may do |

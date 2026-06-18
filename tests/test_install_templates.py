@@ -52,6 +52,35 @@ class InstallTemplatesTests(unittest.TestCase):
                 ),
             )
 
+    def test_codex_hooks_preset_installs_enforcement_files(self) -> None:
+        """The hook preset places policy, handler, and Codex config files."""
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            template_names = install_templates.resolve_template_names(
+                None, ["codex-hooks"], False
+            )
+
+            outcomes = install_templates.build_install_plan(target, template_names)
+            written = install_templates.apply_install_plan(outcomes, apply=True)
+
+            self.assertEqual(
+                template_names,
+                ["hook-handler", "hook-policy", "hook-config"],
+            )
+            self.assertEqual([outcome.status for outcome in outcomes], ["create"] * 3)
+            self.assertEqual(
+                sorted(path.relative_to(target).as_posix() for path in written),
+                [
+                    ".codex/config.toml",
+                    ".codex/safe-project-policy.json",
+                    "assets/codex_hooks/safe_project_hook.py",
+                ],
+            )
+            self.assertIn(
+                ".venv/bin/python",
+                (target / ".codex" / "config.toml").read_text(encoding="utf-8"),
+            )
+
     def test_conflicting_file_is_preserved_and_reported(self) -> None:
         """Existing files are not overwritten when a merge is required."""
         with tempfile.TemporaryDirectory() as tmp:

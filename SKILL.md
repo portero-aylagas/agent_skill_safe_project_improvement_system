@@ -34,6 +34,12 @@ Hybrid Mode or Vendored Skill Mode with the portable hook bundle in
 `assets/codex_hooks/`. External Reference Mode can guide an agent, but it cannot
 reliably enforce target-repo behavior.
 
+Use `scripts/install_templates.py --preset repo-local` to install local
+guidance and verification templates into a target repository. Use `--preset
+docs` when durable backlog and run-report artifacts are needed. Use `--preset
+codex-hooks` only after explicit approval to install the portable hook handler,
+repo-local policy, and Codex hook config into a trusted target repository.
+
 If the target repository already has `AGENTS.md`, `Makefile`, `verify.sh`, or
 similar local files, merge carefully instead of overwriting them.
 
@@ -95,6 +101,9 @@ or multiple audit areas drive patch selection.
   for short metadata summaries, not detailed findings.
 - Full Automation Mode must pass the pre-publish gate before commit, push, or
   pull request creation/update.
+- Hook-enforced Full Automation Mode must keep
+  `.codex/safe-project-workflow.json`, `docs/patch-backlog.md`, and
+  `docs/run-report.md` aligned with stable item IDs such as `P001`.
 - Stop if verification fails.
 
 ## Reference Loading

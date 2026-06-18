@@ -85,13 +85,17 @@ each with command handlers:
 [[hooks.PreToolUse]]
 matcher = "*"
 hooks = [
-  { type = "command", command = "python assets/codex_hooks/safe_project_hook.py --event PreToolUse", timeout = 10 }
+  { type = "command", command = ".venv/bin/python assets/codex_hooks/safe_project_hook.py --event PreToolUse", timeout = 10 }
 ]
 ```
 
 Project-local config, hooks, and exec policies apply only for trusted projects.
 If a target repository is untrusted, enable trust deliberately before relying on
 project-local hook config.
+
+The template assumes the target repository has a `.venv` created by the
+repo-local verification setup. If a target repository deliberately uses a
+different Python path, edit the command before enabling hooks.
 
 ## Event Responsibilities
 

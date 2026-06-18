@@ -106,3 +106,10 @@ Requirements Ledger, confirm any required run report, state commit strategy,
 respect or justify patch thresholds, prepare a pull request body with real
 summary and verification, reject fake issue references or placeholder metadata,
 check CI after push, and hand off only after process artifacts are complete.
+
+When Codex hooks enforce Full Automation, create and maintain
+`.codex/safe-project-workflow.json` before edits. Use stable item IDs such as
+`P001`, keep exactly one item active while editing, run verification after the
+latest write and before commit, map each commit SHA to one item, and keep
+`docs/run-report.md` plus `docs/patch-backlog.md` updated with the same item IDs
+and deferrals.

@@ -343,6 +343,14 @@ Still required:
 - no unrelated cleanup
 - stop on verification failure
 
+When hook enforcement is enabled, Full Automation also requires durable
+machine-readable workflow state at `.codex/safe-project-workflow.json` before
+edits. Use stable backlog item IDs such as `P001`, keep exactly one item active
+while editing, record verification after the latest write and before commit, map
+each commit SHA to one item, and keep `docs/run-report.md` plus
+`docs/patch-backlog.md` aligned with the same item IDs. Unfinished items must be
+completed or explicitly deferred in both workflow state and the run report.
+
 Before commit, push, or pull request creation/update, run a pre-publish gate:
 
 - all selected findings are mapped to code, tests, docs, or explicit deferral

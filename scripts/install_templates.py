@@ -90,11 +90,30 @@ TEMPLATE_CATALOG: dict[str, TemplateSpec] = {
         destination=Path("docs/behavior-inventory.md"),
         description="Behavior inventory worksheet.",
     ),
+    "hook-handler": TemplateSpec(
+        name="hook-handler",
+        source=ASSETS / "codex_hooks" / "safe_project_hook.py",
+        destination=Path("assets/codex_hooks/safe_project_hook.py"),
+        description="Portable Codex lifecycle hook handler.",
+    ),
+    "hook-policy": TemplateSpec(
+        name="hook-policy",
+        source=ASSETS / "codex_hooks" / "safe-project-policy.template.json",
+        destination=Path(".codex/safe-project-policy.json"),
+        description="Repo-local safe-project hook policy.",
+    ),
+    "hook-config": TemplateSpec(
+        name="hook-config",
+        source=ASSETS / "codex_hooks" / "codex-config-snippet.template.toml",
+        destination=Path(".codex/config.toml"),
+        description="Codex hook config snippet for trusted target repos.",
+    ),
 }
 
 PRESETS: dict[str, tuple[str, ...]] = {
     "repo-local": ("agents", "makefile", "verify-sh", "pyproject"),
     "docs": ("skill-note", "backlog", "run-report", "behavior-inventory"),
+    "codex-hooks": ("hook-handler", "hook-policy", "hook-config"),
     "all-safe": tuple(TEMPLATE_CATALOG.keys()),
 }
 

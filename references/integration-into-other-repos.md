@@ -45,12 +45,45 @@ hooks, but the full reference bundle can stay external.
 
 ## Optional Enforcement Layer
 
-For enforcement, copy or vendor the portable bundle from
-`assets/codex_hooks/`, then adapt `.codex/safe-project-policy.json` in the
-target repository. Read `references/agent-runtime-hooks.md` before enabling it.
+For enforcement, install or vendor the portable hook bundle, then adapt
+`.codex/safe-project-policy.json` in the target repository. Read
+`references/agent-runtime-hooks.md` before enabling it.
+
+Preview the files first:
+
+```text
+.venv/bin/python scripts/install_templates.py --target /path/to/target --preset codex-hooks
+```
+
+Apply only missing hook files after review:
+
+```text
+.venv/bin/python scripts/install_templates.py --target /path/to/target --preset codex-hooks --apply
+```
+
+This preset installs:
+
+- `assets/codex_hooks/safe_project_hook.py`: portable hook handler
+- `.codex/safe-project-policy.json`: repo-local policy
+- `.codex/config.toml`: Codex hook config for a trusted target repo
+
+The hook config assumes the target repository has `.venv/bin/python`. Install
+the repo-local verification templates first, or edit the hook config to the
+target repo's Python path before enabling enforcement.
 
 Do not install hooks automatically. Hook installation changes local agent
 behavior and must be an explicit target-repository decision.
+
+Full Automation Mode also requires durable process artifacts:
+
+- `.codex/safe-project-workflow.json`: machine-readable workflow state with
+  stable item IDs such as `P001`
+- `docs/patch-backlog.md`: persisted audit and backlog items
+- `docs/run-report.md`: run report naming the active item, verification, commit,
+  push, and deferrals
+
+The workflow state file is session state and should be ignored. The report and
+backlog files are durable project artifacts when enforcement is enabled.
 
 ## Native Skill Boundary
 

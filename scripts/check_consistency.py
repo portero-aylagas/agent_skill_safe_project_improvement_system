@@ -149,6 +149,20 @@ DEEP_AUDIT_REQUIREMENTS = [
     "UI/backend separation: callbacks validate inputs and call clean backend",
 ]
 
+AUDIT_DRILLDOWN_REQUIREMENTS = [
+    "## Audit Drilldown",
+    "Trigger",
+    "Load",
+    "Investigate",
+    "Patch/Test Candidates",
+    "the evidence to find, not exact commands to run",
+    "inspect target-repo artifacts relevant to that",
+    "`references/audit-matrix.md` is the routing layer",
+    "Prompt Quality",
+    "Software Delivery Testing",
+    "Artifact/File Collision Safety",
+]
+
 RUNTIME_HOOK_REQUIREMENTS = [
     "Codex lifecycle hooks enforce observable agent-session actions.",
     "Hooks are not a complete security boundary.",
@@ -419,6 +433,29 @@ def check_deep_audit_requirements() -> list[str]:
     return errors
 
 
+def check_audit_drilldown_requirements() -> list[str]:
+    """Check that audit drilldown routing and evidence rules stay present.
+
+    Returns:
+        Human-readable consistency errors.
+    """
+    skill = read_text("SKILL.md")
+    audit_matrix = read_text("references/audit-matrix.md")
+    errors = []
+    for requirement in AUDIT_DRILLDOWN_REQUIREMENTS:
+        if requirement not in skill:
+            errors.append(
+                f"SKILL.md missing audit drilldown requirement: {requirement}"
+            )
+    if "Audit Drilldown guidance" not in audit_matrix:
+        errors.append("audit matrix missing Audit Drilldown routing note")
+    if "target-repo evidence before producing findings or patches" not in audit_matrix:
+        errors.append(
+            "audit matrix missing target-repo evidence routing note"
+        )
+    return errors
+
+
 def check_agents_template_requirements() -> list[str]:
     """Check that installed agent rules keep key local guidance.
 
@@ -484,6 +521,7 @@ def main() -> int:
     errors.extend(check_testing_strategy_requirements())
     errors.extend(check_run_artifact_requirements())
     errors.extend(check_deep_audit_requirements())
+    errors.extend(check_audit_drilldown_requirements())
     errors.extend(check_agent_policy())
     errors.extend(check_agents_template_requirements())
     errors.extend(check_runtime_hook_requirements())

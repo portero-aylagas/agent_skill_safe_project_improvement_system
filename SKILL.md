@@ -138,6 +138,65 @@ AI-system-specific risks. Do not load deep audit references in safe refactor mod
 - `references/agent-runtime-hooks.md`: read only when adding portable Codex
   lifecycle hook enforcement for a target repository.
 
+## Audit Drilldown
+
+After selecting an audit area, inspect target-repo artifacts relevant to that
+area before producing findings, backlog items, or patches. Drilldowns describe
+the evidence to find, not exact commands to run; choose repo-specific inspection
+methods based on the project layout and tooling.
+
+Use this pattern when moving from `references/audit-matrix.md` into deeper
+content:
+
+- **Trigger**: when the audit area applies to the selected scope.
+- **Load**: which references become relevant, such as
+  `references/engineering-audits.md`,
+  `references/ai-workflow-audits.md`, or implementation guidance.
+- **Investigate**: what target-repo evidence must be inspected before forming
+  findings.
+- **Patch/Test Candidates**: typical safe remediation directions and
+  verification options.
+
+`references/audit-matrix.md` is the routing layer for choosing audit areas.
+Deep files such as `references/ai-workflow-audits.md` and
+`references/engineering-audits.md` are the detailed playbooks for area-specific
+checks.
+
+Examples:
+
+- **Prompt Quality**
+  - Trigger: the repository builds prompts, sends model requests, or handles
+    model responses.
+  - Load: `references/ai-workflow-audits.md` and, when changing code,
+    `references/ai-integration-quality.md`.
+  - Investigate: prompt definitions, prompt assembly, injected inputs, output
+    expectations, model call sites, response parsing, error handling, and
+    fake-client or evaluation coverage.
+  - Patch/Test Candidates: name or isolate prompts, clarify input/output
+    contracts, add response validation, and add deterministic fake-client tests
+    or fixture evaluations.
+- **Software Delivery Testing**
+  - Trigger: the task needs review of verification quality, patch safety, CI, or
+    test gaps.
+  - Load: `references/engineering-audits.md` and
+    `references/testing-strategy.md`.
+  - Investigate: documented verification commands, existing tests, what each
+    test protects, live-service dependencies, missing characterization or
+    regression coverage, and the first safe test patch.
+  - Patch/Test Candidates: add or repair normal verification, add focused
+    characterization or regression tests, separate live checks from normal
+    verification, and improve failure diagnostics.
+- **Artifact/File Collision Safety**
+  - Trigger: the repository creates generated files, uploads, caches, reports,
+    exports, or run artifacts.
+  - Load: `references/engineering-audits.md`.
+  - Investigate: artifact creation points, filename generation, overwrite
+    behavior, repeated-run and concurrency risks, user-controlled paths, and
+    practical verification options.
+  - Patch/Test Candidates: make existing-file behavior explicit, use
+    collision-resistant naming when needed, add path validation, and add a
+    repeated-run test or smoke check.
+
 ## Implementation Definition Of Done
 
 For implementation work, public modules, classes, and functions should have

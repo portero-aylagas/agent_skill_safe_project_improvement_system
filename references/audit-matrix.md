@@ -11,6 +11,10 @@ Use these user-facing audit families in reports and backlog items:
 - `Engineering Audits`
 - `AI System Audits`
 
+This matrix is the routing layer for choosing audit areas. After choosing an
+area, use the `SKILL.md` Audit Drilldown guidance to enter the relevant deep
+reference and inspect target-repo evidence before producing findings or patches.
+
 ## Python Scripts and Packages
 
 - Entry points: scripts, modules, CLI commands, notebooks converted to scripts.

@@ -1,12 +1,16 @@
 #!/usr/bin/env sh
 set -eu
 
-PYTHON="${PYTHON:-python3}"
+if [ -z "${PYTHON:-}" ] && [ -x .venv/bin/python ]; then
+    PYTHON=".venv/bin/python"
+else
+    PYTHON="${PYTHON:-python3}"
+fi
 
-"$PYTHON" -m compileall -q -x '(^|/)(\.venv|venv|\.conda|__pycache__|\.git|build|dist)/' .
+"$PYTHON" -m compileall -q -x '(^|/)(\.venv|venv|__pycache__|\.git|build|dist)/' .
 
 "$PYTHON" -c "import ruff" >/dev/null 2>&1 || {
-    echo "ruff is required. Install it with: python -m pip install ruff"
+    echo "ruff is required. Install it with: $PYTHON -m pip install ruff"
     exit 1
 }
 "$PYTHON" -m ruff check .

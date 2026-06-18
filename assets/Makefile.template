@@ -1,6 +1,7 @@
 .PHONY: verify test compile lint
 
-PYTHON ?= python3
+DEFAULT_PYTHON := $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
+PYTHON ?= $(DEFAULT_PYTHON)
 
 verify: compile lint test
 
@@ -17,11 +18,11 @@ test:
 	fi
 
 compile:
-	@$(PYTHON) -m compileall -q -x '(^|/)(\.venv|venv|\.conda|__pycache__|\.git|build|dist)/' .
+	@$(PYTHON) -m compileall -q -x '(^|/)(\.venv|venv|__pycache__|\.git|build|dist)/' .
 
 lint:
 	@$(PYTHON) -c "import ruff" >/dev/null 2>&1 || { \
-		echo "ruff is required. Install it with: python -m pip install ruff"; \
+		echo "ruff is required. Install it with: $(PYTHON) -m pip install ruff"; \
 		exit 1; \
 	}
 	@$(PYTHON) -m ruff check .

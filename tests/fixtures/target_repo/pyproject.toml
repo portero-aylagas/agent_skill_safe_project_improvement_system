@@ -1,18 +1,6 @@
-[tool.pytest.ini_options]
-addopts = "-q"
-pythonpath = ["."]
-testpaths = ["tests"]
-
 [tool.ruff]
 line-length = 88
 target-version = "py311"
-extend-exclude = [
-    ".venv",
-    "venv",
-    "__pycache__",
-    "build",
-    "dist",
-]
 
 [tool.ruff.lint]
 select = [
@@ -24,9 +12,7 @@ select = [
     "D101",
     "D102",
     "D103",
-    "D107",
 ]
-ignore = []
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

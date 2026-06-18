@@ -260,12 +260,14 @@ Use hook and CI templates only after explicit user approval.
 Repository verification should normally be:
 
 ```text
-python -m pip install -r requirements-dev.txt
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-dev.txt
 make verify
 ```
 
-For this repository, `make verify` compiles local scripts, runs Ruff, and checks
-that the core docs still point back to the canonical protocol.
+For this repository, `make verify` uses `.venv/bin/python` when present, falls
+back to `python3` otherwise, compiles local scripts, runs Ruff, and checks that
+the core docs still point back to the canonical protocol.
 
 ---
 

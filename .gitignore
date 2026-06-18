@@ -217,9 +217,6 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Conda environments
-.conda/
-
 # VS Code Python extension settings files
 .vscode/
 .env.codex/
@@ -228,3 +225,5 @@ __marimo__/
 # Safe project hook runtime state for target repositories.
 .codex/safe-project-audit.jsonl
 .codex/safe-project-session-state.json
+.venv/
+.codex/

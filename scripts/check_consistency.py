@@ -47,6 +47,17 @@ REQUIRED_PATHS = [
     "examples/local-safe-refactor.md",
     "examples/install-verification.md",
     "tests/test_safe_project_hook.py",
+    "tests/test_target_repo_fixture.py",
+    "tests/fixtures/target_repo/AGENTS.md",
+    "tests/fixtures/target_repo/Makefile",
+    "tests/fixtures/target_repo/README.md",
+    "tests/fixtures/target_repo/docs/patch-backlog.md",
+    "tests/fixtures/target_repo/docs/run-report.md",
+    "tests/fixtures/target_repo/pyproject.toml",
+    "tests/fixtures/target_repo/src/example_target/__init__.py",
+    "tests/fixtures/target_repo/src/example_target/calculator.py",
+    "tests/fixtures/target_repo/tests/test_calculator.py",
+    "tests/fixtures/target_repo/verify.sh",
 ]
 
 WORKFLOW_DOCS = [

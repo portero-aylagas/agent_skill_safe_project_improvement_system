@@ -1,22 +1,97 @@
 #!/usr/bin/env sh
 set -eu
 
-if [ -z "${PYTHON:-}" ] && [ -x .venv/bin/python ]; then
-    PYTHON=".venv/bin/python"
-else
-    PYTHON="${PYTHON:-python3}"
+find_python() {
+    if [ -n "${SAFE_PROJECT_PYTHON:-}" ]; then
+        printf '%s\n' "$SAFE_PROJECT_PYTHON"
+        return
+    fi
+    if [ -n "${PYTHON:-}" ]; then
+        printf '%s\n' "$PYTHON"
+        return
+    fi
+    if [ -n "${VIRTUAL_ENV:-}" ] && [ -x "$VIRTUAL_ENV/bin/python" ]; then
+        printf '%s\n' "$VIRTUAL_ENV/bin/python"
+        return
+    fi
+    for candidate in .venv/bin/python venv/bin/python env/bin/python .env/bin/python; do
+        if [ -x "$candidate" ]; then
+            printf '%s\n' "$candidate"
+            return
+        fi
+    done
+    if command -v python3 >/dev/null 2>&1; then
+        printf '%s\n' python3
+        return
+    fi
+    if command -v python >/dev/null 2>&1; then
+        printf '%s\n' python
+        return
+    fi
+    echo "No Python interpreter found. Set SAFE_PROJECT_PYTHON or PYTHON." >&2
+    exit 127
+}
+
+install_deps() {
+    if command -v uv >/dev/null 2>&1 && [ -f uv.lock ]; then
+        uv sync --all-extras --dev
+        return
+    fi
+    if command -v poetry >/dev/null 2>&1 && { [ -f poetry.lock ] || grep -q '^\[tool\.poetry\]' pyproject.toml 2>/dev/null; }; then
+        poetry install
+        return
+    fi
+    if command -v pipenv >/dev/null 2>&1 && [ -f Pipfile ]; then
+        pipenv install --dev
+        return
+    fi
+    if command -v hatch >/dev/null 2>&1 && grep -q '^\[tool\.hatch' pyproject.toml 2>/dev/null; then
+        hatch env create
+        return
+    fi
+
+    PYTHON_BIN=$(find_python)
+    if [ -f requirements-dev.txt ]; then
+        "$PYTHON_BIN" -m pip install -r requirements-dev.txt
+        return
+    fi
+    if [ -f requirements-test.txt ]; then
+        "$PYTHON_BIN" -m pip install -r requirements-test.txt
+        return
+    fi
+    if [ -f requirements.txt ]; then
+        "$PYTHON_BIN" -m pip install -r requirements.txt
+        return
+    fi
+    if [ -f pyproject.toml ]; then
+        "$PYTHON_BIN" -m pip install -e ".[dev]" || "$PYTHON_BIN" -m pip install -e .
+        return
+    fi
+
+    echo "No dependency file found; nothing to install."
+}
+
+if [ "${1:-}" = "--install-deps" ]; then
+    install_deps
+    exit 0
 fi
 
-"$PYTHON" -m compileall -q -x '(^|/)(\.venv|venv|__pycache__|\.git|build|dist)/' .
+PYTHON_BIN=$(find_python)
 
-"$PYTHON" -c "import ruff" >/dev/null 2>&1 || {
-    echo "ruff is required. Install it with: $PYTHON -m pip install ruff"
+"$PYTHON_BIN" -m compileall -q -x '(^|/)(\.venv|venv|env|\.env|__pycache__|\.git|build|dist)/' .
+
+"$PYTHON_BIN" -c "import ruff" >/dev/null 2>&1 || {
+    echo "ruff is required. Run ./verify.sh --install-deps or install it in the active Python environment."
     exit 1
 }
-"$PYTHON" -m ruff check .
+"$PYTHON_BIN" -m ruff check .
 
 if [ -d tests ]; then
-    "$PYTHON" -m pytest -q
+    "$PYTHON_BIN" -c "import pytest" >/dev/null 2>&1 || {
+        echo "pytest is required because tests/ exists. Run ./verify.sh --install-deps or install it in the active Python environment."
+        exit 1
+    }
+    "$PYTHON_BIN" -m pytest -q
 else
     echo "No tests directory found; skipping pytest."
 fi

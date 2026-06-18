@@ -65,19 +65,20 @@ class InstallTemplatesTests(unittest.TestCase):
 
             self.assertEqual(
                 template_names,
-                ["hook-handler", "hook-policy", "hook-config"],
+                ["hook-handler", "hook-runner", "hook-policy", "hook-config"],
             )
-            self.assertEqual([outcome.status for outcome in outcomes], ["create"] * 3)
+            self.assertEqual([outcome.status for outcome in outcomes], ["create"] * 4)
             self.assertEqual(
                 sorted(path.relative_to(target).as_posix() for path in written),
                 [
                     ".codex/config.toml",
                     ".codex/safe-project-policy.json",
+                    "assets/codex_hooks/run_safe_project_hook.sh",
                     "assets/codex_hooks/safe_project_hook.py",
                 ],
             )
             self.assertIn(
-                ".venv/bin/python",
+                "run_safe_project_hook.sh",
                 (target / ".codex" / "config.toml").read_text(encoding="utf-8"),
             )
 

@@ -55,31 +55,42 @@ Do not blindly overwrite an existing `AGENTS.md`, `Makefile`, `verify.sh`, or
 Start with local guidance and verification in the target repository:
 
 ```text
-.venv/bin/python scripts/install_templates.py --target /path/to/target --preset repo-local
-.venv/bin/python scripts/install_templates.py --target /path/to/target --preset repo-local --apply
+python scripts/install_templates.py --target /path/to/target --preset repo-local
+python scripts/install_templates.py --target /path/to/target --preset repo-local --apply
 ```
 
 Add durable documentation artifacts when you want a review backlog, medium or
 high-risk refactor, or Full Automation run:
 
 ```text
-.venv/bin/python scripts/install_templates.py --target /path/to/target --preset docs
-.venv/bin/python scripts/install_templates.py --target /path/to/target --preset docs --apply
+python scripts/install_templates.py --target /path/to/target --preset docs
+python scripts/install_templates.py --target /path/to/target --preset docs --apply
 ```
 
 For hook-enforced Full Automation, add the Codex hook bundle only after the
 target repo owner explicitly approves local hook enforcement:
 
 ```text
-.venv/bin/python scripts/install_templates.py --target /path/to/target --preset codex-hooks
-.venv/bin/python scripts/install_templates.py --target /path/to/target --preset codex-hooks --apply
+python scripts/install_templates.py --target /path/to/target --preset codex-hooks
+python scripts/install_templates.py --target /path/to/target --preset codex-hooks --apply
 ```
 
 The `codex-hooks` preset installs the portable handler at
 `assets/codex_hooks/safe_project_hook.py`, the repo-local policy at
 `.codex/safe-project-policy.json`, and a trusted-project Codex config at
-`.codex/config.toml`. The config uses `.venv/bin/python`; create the target
-repo's `.venv` first or edit the config to the target repo's Python path.
+`.codex/config.toml`. The config calls `run_safe_project_hook.sh`, which uses
+`SAFE_PROJECT_PYTHON` or `PYTHON` when set, then an active virtualenv, common
+local environment directories, `uv`, `poetry`, `pipenv`, `hatch`, and finally
+`python3` or `python`.
+
+The installed `Makefile` exposes:
+
+- `make install-dev`: install dependencies using the target repo's existing
+  Python tool files, such as `uv.lock`, `poetry.lock`, `Pipfile`,
+  `requirements-dev.txt`, `requirements-test.txt`, `requirements.txt`, or
+  `pyproject.toml`
+- `make verify`: run compile, Ruff, and tests using the detected Python
+  environment
 
 Use this progression for a typical refactor:
 
@@ -313,14 +324,13 @@ Use hook and CI templates only after explicit user approval.
 Repository verification should normally be:
 
 ```text
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements-dev.txt
+python -m pip install -r requirements-dev.txt
 make verify
 ```
 
-For this repository, `make verify` uses `.venv/bin/python` when present, falls
-back to `python3` otherwise, compiles local scripts, runs Ruff, and checks that
-the core docs still point back to the canonical protocol.
+Use the Python command for your active environment. For this repository,
+`make verify` compiles local scripts, runs Ruff, runs tests, and checks that the
+core docs still point back to the canonical protocol.
 
 ---
 

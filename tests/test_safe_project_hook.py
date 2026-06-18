@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -651,7 +652,21 @@ class SafeProjectHookTests(unittest.TestCase):
         self.assertIn("[[hooks.PreToolUse]]", config)
         self.assertIn("[[hooks.UserPromptSubmit]]", config)
         self.assertIn('type = "command"', config)
-        self.assertIn(".venv/bin/python", config)
+        self.assertIn("sh assets/codex_hooks/run_safe_project_hook.sh", config)
+
+    def test_hook_runner_shell_syntax_is_valid(self) -> None:
+        """The environment-detecting hook runner remains shell-parseable."""
+        runner = ROOT / "assets" / "codex_hooks" / "run_safe_project_hook.sh"
+
+        result = subprocess.run(
+            ["sh", "-n", str(runner)],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stdout)
 
     def test_docs_mention_hook_limitations(self) -> None:
         """Runtime hook docs mention shell or unified execution limitations."""

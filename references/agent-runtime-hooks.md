@@ -25,6 +25,7 @@ defense-in-depth workflow:
 The portable template bundle lives under `assets/codex_hooks/`:
 
 - `safe_project_hook.py`: dependency-free Python handler
+- `run_safe_project_hook.sh`: environment-detecting shell runner for the handler
 - `safe-project-policy.template.json`: repo-local policy template
 - `codex-config-snippet.template.toml`: Codex hook config snippet
 - `gitignore.template`: ignored audit and state paths
@@ -85,7 +86,7 @@ each with command handlers:
 [[hooks.PreToolUse]]
 matcher = "*"
 hooks = [
-  { type = "command", command = ".venv/bin/python assets/codex_hooks/safe_project_hook.py --event PreToolUse", timeout = 10 }
+  { type = "command", command = "sh assets/codex_hooks/run_safe_project_hook.sh --event PreToolUse", timeout = 10 }
 ]
 ```
 
@@ -93,9 +94,11 @@ Project-local config, hooks, and exec policies apply only for trusted projects.
 If a target repository is untrusted, enable trust deliberately before relying on
 project-local hook config.
 
-The template assumes the target repository has a `.venv` created by the
-repo-local verification setup. If a target repository deliberately uses a
-different Python path, edit the command before enabling hooks.
+The runner uses `SAFE_PROJECT_PYTHON` or `PYTHON` when set, then an active
+virtualenv, common local environment directories, `uv`, `poetry`, `pipenv`,
+`hatch`, and finally `python3` or `python`. The hook handler itself is
+dependency-free; the target repo's normal verification dependencies should be
+installed through the repo's own dependency files.
 
 ## Event Responsibilities
 

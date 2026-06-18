@@ -52,24 +52,27 @@ For enforcement, install or vendor the portable hook bundle, then adapt
 Preview the files first:
 
 ```text
-.venv/bin/python scripts/install_templates.py --target /path/to/target --preset codex-hooks
+python scripts/install_templates.py --target /path/to/target --preset codex-hooks
 ```
 
 Apply only missing hook files after review:
 
 ```text
-.venv/bin/python scripts/install_templates.py --target /path/to/target --preset codex-hooks --apply
+python scripts/install_templates.py --target /path/to/target --preset codex-hooks --apply
 ```
 
 This preset installs:
 
 - `assets/codex_hooks/safe_project_hook.py`: portable hook handler
+- `assets/codex_hooks/run_safe_project_hook.sh`: environment-detecting hook
+  runner
 - `.codex/safe-project-policy.json`: repo-local policy
 - `.codex/config.toml`: Codex hook config for a trusted target repo
 
-The hook config assumes the target repository has `.venv/bin/python`. Install
-the repo-local verification templates first, or edit the hook config to the
-target repo's Python path before enabling enforcement.
+Use the Python command for the current support-repo environment when running the
+installer. The installed hook runner uses `SAFE_PROJECT_PYTHON` or `PYTHON` when
+set, then an active virtualenv, common local environment directories, `uv`,
+`poetry`, `pipenv`, `hatch`, and finally `python3` or `python`.
 
 Do not install hooks automatically. Hook installation changes local agent
 behavior and must be an explicit target-repository decision.

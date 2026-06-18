@@ -9,29 +9,29 @@
 [[hooks.SessionStart]]
 matcher = "*"
 hooks = [
-  { type = "command", command = ".venv/bin/python assets/codex_hooks/safe_project_hook.py --event SessionStart", timeout = 10, statusMessage = "Starting safe-project policy session" }
+  { type = "command", command = "sh assets/codex_hooks/run_safe_project_hook.sh --event SessionStart", timeout = 10, statusMessage = "Starting safe-project policy session" }
 ]
 
 [[hooks.PreToolUse]]
 matcher = "*"
 hooks = [
-  { type = "command", command = ".venv/bin/python assets/codex_hooks/safe_project_hook.py --event PreToolUse", timeout = 10, statusMessage = "Checking safe-project policy" }
+  { type = "command", command = "sh assets/codex_hooks/run_safe_project_hook.sh --event PreToolUse", timeout = 10, statusMessage = "Checking safe-project policy" }
 ]
 
 [[hooks.PostToolUse]]
 matcher = "*"
 hooks = [
-  { type = "command", command = ".venv/bin/python assets/codex_hooks/safe_project_hook.py --event PostToolUse", timeout = 10, statusMessage = "Recording safe-project audit evidence" }
+  { type = "command", command = "sh assets/codex_hooks/run_safe_project_hook.sh --event PostToolUse", timeout = 10, statusMessage = "Recording safe-project audit evidence" }
 ]
 
 [[hooks.UserPromptSubmit]]
 matcher = "*"
 hooks = [
-  { type = "command", command = ".venv/bin/python assets/codex_hooks/safe_project_hook.py --event UserPromptSubmit", timeout = 10, statusMessage = "Checking safe-project approval prompt" }
+  { type = "command", command = "sh assets/codex_hooks/run_safe_project_hook.sh --event UserPromptSubmit", timeout = 10, statusMessage = "Checking safe-project approval prompt" }
 ]
 
 [[hooks.Stop]]
 matcher = "*"
 hooks = [
-  { type = "command", command = ".venv/bin/python assets/codex_hooks/safe_project_hook.py --event Stop", timeout = 10, statusMessage = "Checking safe-project session completion" }
+  { type = "command", command = "sh assets/codex_hooks/run_safe_project_hook.sh --event Stop", timeout = 10, statusMessage = "Checking safe-project session completion" }
 ]

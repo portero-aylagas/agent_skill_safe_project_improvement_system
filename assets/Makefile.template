@@ -1,28 +1,18 @@
-.PHONY: verify test compile lint
+.PHONY: verify install-dev test compile lint
 
-DEFAULT_PYTHON := $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
-PYTHON ?= $(DEFAULT_PYTHON)
+VERIFY ?= ./verify.sh
 
-verify: compile lint test
+verify:
+	@$(VERIFY)
+
+install-dev:
+	@$(VERIFY) --install-deps
 
 test:
-	@if [ -d tests ]; then \
-		$(PYTHON) -c "import pytest" >/dev/null 2>&1 || { \
-			echo "pytest is required because tests/ exists."; \
-			echo "Add pytest to the project's dev/test dependencies, then rerun make verify."; \
-			exit 1; \
-		}; \
-		$(PYTHON) -m pytest -q; \
-	else \
-		echo "No tests directory found; skipping pytest."; \
-	fi
+	@$(VERIFY)
 
 compile:
-	@$(PYTHON) -m compileall -q -x '(^|/)(\.venv|venv|__pycache__|\.git|build|dist)/' .
+	@$(VERIFY)
 
 lint:
-	@$(PYTHON) -c "import ruff" >/dev/null 2>&1 || { \
-		echo "ruff is required. Install it with: $(PYTHON) -m pip install ruff"; \
-		exit 1; \
-	}
-	@$(PYTHON) -m ruff check .
+	@$(VERIFY)

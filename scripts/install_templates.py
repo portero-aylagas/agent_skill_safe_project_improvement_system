@@ -96,6 +96,12 @@ TEMPLATE_CATALOG: dict[str, TemplateSpec] = {
         destination=Path("assets/codex_hooks/safe_project_hook.py"),
         description="Portable Codex lifecycle hook handler.",
     ),
+    "hook-runner": TemplateSpec(
+        name="hook-runner",
+        source=ASSETS / "codex_hooks" / "run_safe_project_hook.sh",
+        destination=Path("assets/codex_hooks/run_safe_project_hook.sh"),
+        description="Environment-detecting shell runner for the Codex hook.",
+    ),
     "hook-policy": TemplateSpec(
         name="hook-policy",
         source=ASSETS / "codex_hooks" / "safe-project-policy.template.json",
@@ -113,7 +119,7 @@ TEMPLATE_CATALOG: dict[str, TemplateSpec] = {
 PRESETS: dict[str, tuple[str, ...]] = {
     "repo-local": ("agents", "makefile", "verify-sh", "pyproject"),
     "docs": ("skill-note", "backlog", "run-report", "behavior-inventory"),
-    "codex-hooks": ("hook-handler", "hook-policy", "hook-config"),
+    "codex-hooks": ("hook-handler", "hook-runner", "hook-policy", "hook-config"),
     "all-safe": tuple(TEMPLATE_CATALOG.keys()),
 }
 

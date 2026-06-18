@@ -55,6 +55,74 @@ class SafeProjectHookTests(unittest.TestCase):
             "verification_after_write": False,
         }
 
+    def full_automation_policy(self) -> dict:
+        """Return a Full Automation policy with approvals enabled for tests."""
+        policy = self.base_policy()
+        policy["mode"] = "full_automation"
+        policy["allowed_approval_gates"]["commits"] = True
+        policy["allowed_approval_gates"]["pushes"] = True
+        policy["allowed_approval_gates"]["branch_changes"] = True
+        return policy
+
+    def write_policy(self, cwd: Path, policy: dict) -> None:
+        """Write a test policy to the temporary repository."""
+        codex_dir = cwd / ".codex"
+        codex_dir.mkdir(exist_ok=True)
+        (codex_dir / "safe-project-policy.json").write_text(
+            json.dumps(policy), encoding="utf-8"
+        )
+
+    def write_workflow(
+        self,
+        cwd: Path,
+        items: list[dict],
+        active_item: str | None = None,
+    ) -> None:
+        """Write durable workflow state."""
+        codex_dir = cwd / ".codex"
+        codex_dir.mkdir(exist_ok=True)
+        workflow = {"branch": "automation/test", "items": items}
+        if active_item is not None:
+            workflow["active_item"] = active_item
+        (codex_dir / "safe-project-workflow.json").write_text(
+            json.dumps(workflow), encoding="utf-8"
+        )
+
+    def write_reports(self, cwd: Path, item_id: str = "P001") -> None:
+        """Write minimal durable reports with required headings and item IDs."""
+        docs = cwd / "docs"
+        docs.mkdir(exist_ok=True)
+        (docs / "run-report.md").write_text(
+            "\n".join(
+                [
+                    "# Safe Improvement Run Report",
+                    "## Metadata",
+                    "## Scope",
+                    "## Requirements Ledger",
+                    "## Backlog",
+                    f"### {item_id}",
+                    "## Patch Applied",
+                    "## Pre-Publish Gate",
+                    "## Verification",
+                    "## Follow-Up",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        (docs / "patch-backlog.md").write_text(
+            "\n".join(
+                [
+                    "# Patch Backlog",
+                    "## Requirements Ledger Snapshot",
+                    "## Skipped Engineering Areas",
+                    "## Skipped AI System Areas",
+                    "## Backlog Items",
+                    f"### {item_id}",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
     def pre_tool_event(self, tool_name: str, tool_input: object) -> dict:
         """Build a `PreToolUse` event."""
         return {
@@ -303,6 +371,243 @@ class SafeProjectHookTests(unittest.TestCase):
             decision = hook.evaluate_stop(Path(tmp), policy, session)
 
         self.assertTrue(decision.allowed)
+
+    def test_full_automation_valid_flow_records_commit_push_and_stop(self) -> None:
+        """Full Automation accepts active item, write, verify, commit, push, stop."""
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            policy = self.full_automation_policy()
+            session = self.base_session()
+            commit_sha = "a" * 40
+            self.write_policy(cwd, policy)
+            self.write_workflow(cwd, [{"id": "P001", "status": "active"}], "P001")
+            self.write_reports(cwd)
+
+            write = self.pre_tool_event("apply_patch", "*** Update File: app.py\n")
+            self.assertTrue(hook.evaluate_pre_tool(policy, session, write, cwd).allowed)
+            hook.record_post_tool(policy, session, write, cwd)
+            hook.record_post_tool(
+                policy,
+                session,
+                self.post_tool_event("exec_command", {"cmd": "make verify"}),
+                cwd,
+            )
+
+            commit = self.pre_tool_event("exec_command", {"cmd": "git commit -m P001"})
+            self.assertTrue(hook.evaluate_pre_tool(policy, session, commit, cwd).allowed)
+            hook.record_post_tool(
+                policy,
+                session,
+                self.post_tool_event(
+                    "exec_command",
+                    {"cmd": "git commit -m P001"},
+                    {"exit_code": 0, "stdout": commit_sha},
+                ),
+                cwd,
+            )
+
+            push = self.pre_tool_event("exec_command", {"cmd": "git push origin HEAD"})
+            self.assertTrue(hook.evaluate_pre_tool(policy, session, push, cwd).allowed)
+            hook.record_post_tool(
+                policy,
+                session,
+                self.post_tool_event("exec_command", {"cmd": "git push origin HEAD"}),
+                cwd,
+            )
+
+            workflow = json.loads(
+                (cwd / ".codex" / "safe-project-workflow.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(workflow["items"][0]["commit_sha"], commit_sha)
+            self.assertEqual(workflow["items"][0]["status"], "pushed")
+            self.assertTrue(hook.evaluate_stop(cwd, policy, session).allowed)
+
+    def test_full_automation_blocks_commit_before_verification(self) -> None:
+        """Commits are blocked until verification passes after the latest write."""
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            policy = self.full_automation_policy()
+            session = self.base_session()
+            session["write_count"] = 1
+            session["last_write_index"] = 3
+            self.write_workflow(cwd, [{"id": "P001", "status": "active"}], "P001")
+            self.write_reports(cwd)
+
+            decision = hook.evaluate_pre_tool(
+                policy,
+                session,
+                self.pre_tool_event("exec_command", {"cmd": "git commit -m P001"}),
+                cwd,
+            )
+
+            self.assertFalse(decision.allowed)
+            self.assertIn("verification", decision.reason)
+
+    def test_full_automation_blocks_commit_with_no_active_item(self) -> None:
+        """A commit needs one active workflow item."""
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            policy = self.full_automation_policy()
+            session = self.base_session()
+            session["verification_after_write"] = True
+            self.write_workflow(cwd, [{"id": "P001", "status": "open"}])
+            self.write_reports(cwd)
+
+            decision = hook.evaluate_pre_tool(
+                policy,
+                session,
+                self.pre_tool_event("exec_command", {"cmd": "git commit -m P001"}),
+                cwd,
+            )
+
+            self.assertFalse(decision.allowed)
+            self.assertIn("exactly one", decision.reason)
+
+    def test_full_automation_blocks_multiple_active_items(self) -> None:
+        """Multiple active workflow items are ambiguous and blocked."""
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            policy = self.full_automation_policy()
+            self.write_workflow(
+                cwd,
+                [
+                    {"id": "P001", "status": "active"},
+                    {"id": "P002", "status": "active"},
+                ],
+            )
+            self.write_reports(cwd)
+
+            decision = hook.evaluate_pre_tool(
+                policy,
+                self.base_session(),
+                self.pre_tool_event("apply_patch", "*** Update File: app.py\n"),
+                cwd,
+            )
+
+            self.assertFalse(decision.allowed)
+            self.assertIn("multiple active", decision.reason)
+
+    def test_full_automation_blocks_push_with_unmapped_commit(self) -> None:
+        """Pushes require every session commit to be mapped to a workflow item."""
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            policy = self.full_automation_policy()
+            session = self.base_session()
+            session["workflow_commits"] = ["b" * 40]
+            self.write_workflow(
+                cwd,
+                [
+                    {
+                        "id": "P001",
+                        "status": "committed",
+                        "commit_sha": "c" * 40,
+                        "verification": {"result": "passed"},
+                    }
+                ],
+            )
+            self.write_reports(cwd)
+
+            decision = hook.evaluate_pre_tool(
+                policy,
+                session,
+                self.pre_tool_event("exec_command", {"cmd": "git push origin HEAD"}),
+                cwd,
+            )
+
+            self.assertFalse(decision.allowed)
+            self.assertIn("Missing", decision.reason)
+
+    def test_full_automation_blocks_stop_with_incomplete_workflow(self) -> None:
+        """Stop blocks unfinished items unless they are explicitly deferred."""
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            policy = self.full_automation_policy()
+            self.write_workflow(cwd, [{"id": "P001", "status": "active"}], "P001")
+            self.write_reports(cwd)
+
+            decision = hook.evaluate_stop(cwd, policy, self.base_session())
+
+            self.assertFalse(decision.allowed)
+            self.assertIn("incomplete", decision.reason)
+
+    def test_full_automation_blocks_missing_run_report(self) -> None:
+        """Full Automation requires a durable run report."""
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            policy = self.full_automation_policy()
+            self.write_workflow(cwd, [{"id": "P001", "status": "active"}], "P001")
+
+            decision = hook.evaluate_pre_tool(
+                policy,
+                self.base_session(),
+                self.pre_tool_event("apply_patch", "*** Update File: app.py\n"),
+                cwd,
+            )
+
+            self.assertFalse(decision.allowed)
+            self.assertIn("Missing durable run report", decision.reason)
+
+    def test_full_automation_blocks_report_missing_ledger_section(self) -> None:
+        """Report validation checks required headings."""
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            policy = self.full_automation_policy()
+            self.write_workflow(cwd, [{"id": "P001", "status": "active"}], "P001")
+            self.write_reports(cwd)
+            report = cwd / "docs" / "run-report.md"
+            report.write_text(
+                report.read_text(encoding="utf-8").replace(
+                    "## Requirements Ledger\n", ""
+                ),
+                encoding="utf-8",
+            )
+
+            decision = hook.evaluate_pre_tool(
+                policy,
+                self.base_session(),
+                self.pre_tool_event("apply_patch", "*** Update File: app.py\n"),
+                cwd,
+            )
+
+            self.assertFalse(decision.allowed)
+            self.assertIn("Requirements Ledger", decision.reason)
+
+    def test_full_automation_blocks_missing_backlog_item_id(self) -> None:
+        """The persisted backlog must include at least one workflow item ID."""
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            policy = self.full_automation_policy()
+            self.write_workflow(cwd, [{"id": "P001", "status": "active"}], "P001")
+            self.write_reports(cwd)
+            backlog = cwd / "docs" / "patch-backlog.md"
+            backlog.write_text(
+                backlog.read_text(encoding="utf-8").replace("### P001", ""),
+                encoding="utf-8",
+            )
+
+            decision = hook.evaluate_pre_tool(
+                policy,
+                self.base_session(),
+                self.pre_tool_event("apply_patch", "*** Update File: app.py\n"),
+                cwd,
+            )
+
+            self.assertFalse(decision.allowed)
+            self.assertIn("workflow item ID", decision.reason)
+
+    def test_valid_minimal_durable_reports_pass(self) -> None:
+        """A minimal report/backlog with required headings and item IDs passes."""
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            policy = self.full_automation_policy()
+            workflow = {"items": [{"id": "P001", "status": "active"}]}
+            self.write_reports(cwd)
+
+            decision = hook.validate_durable_reports(cwd, policy, workflow)
+
+            self.assertTrue(decision.allowed)
 
     def test_protected_paths_block_unless_allowed(self) -> None:
         """Protected paths require explicit policy approval."""

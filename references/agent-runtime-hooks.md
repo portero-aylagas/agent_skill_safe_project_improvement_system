@@ -53,12 +53,18 @@ All repo-specific behavior belongs in that policy file:
 - `live_service_env_vars` and `forbidden_live_service_commands`: commands and
   credentials that normal verification must avoid
 - `audit_log` and `state_file`: JSONL audit and session state paths
+- `workflow_state_file`: machine-readable Full Automation workflow state path,
+  defaulting to `.codex/safe-project-workflow.json`
+- `run_report` and `patch_backlog`: durable report artifact paths
+- `require_durable_reports`: require report/backlog artifacts for hook-enforced
+  non-Full-Automation modes
 
 The audit and state files should be ignored by default:
 
 ```text
 .codex/safe-project-audit.jsonl
 .codex/safe-project-session-state.json
+.codex/safe-project-workflow.json
 ```
 
 The handler resolves these paths inside the target repository at runtime. When
@@ -93,9 +99,9 @@ project-local hook config.
   and status. If the handler is enabled but policy is missing or invalid, fail
   closed.
 - `PreToolUse`: block disallowed actions before execution, including Review Mode
-  writes, commits, pushes, branch changes, hook installation, CI changes,
-  protected-path edits, destructive shell commands, and live-service commands
-  without explicit policy approval.
+  writes, Full Automation workflow transitions, commits, pushes, branch changes,
+  hook installation, CI changes, protected-path edits, destructive shell
+  commands, and live-service commands without explicit policy approval.
 - `UserPromptSubmit`: record session-scoped approval gates from explicit user
   prompts. Valid prompts use this exact shape:
 
@@ -111,10 +117,47 @@ state, then appends a sanitized audit entry. Malformed prompts do not grant
 approval. Session approvals do not edit static policy and expire with the Codex
 session.
 - `PostToolUse`: append sanitized audit events and update observed inspection,
-  write, verification, and failure evidence.
+  write, verification, branch, commit, push, and failure evidence.
 - `Stop`: record final git status and block/report incomplete sessions where
   writes or changed files exist without successful verification after the first
-  write.
+  write, or where Full Automation items remain unfinished without explicit
+  deferral.
+
+## Full Automation Workflow State
+
+When `mode` is `full_automation`, the hook requires durable workflow state at
+`workflow_state_file` before writes, commits, pushes, or stop. The state file is
+JSON and must contain audited/backlog items with stable IDs such as `P001`,
+statuses, and at most one active item:
+
+```json
+{
+  "branch": "safe-project/full-automation",
+  "active_item": "P001",
+  "items": [
+    {
+      "id": "P001",
+      "status": "active",
+      "verification": {
+        "command": "make verify",
+        "result": "passed"
+      }
+    }
+  ]
+}
+```
+
+The hook records successful verification on the active item, records commit SHA
+evidence after `git commit`, and marks mapped items pushed after `git push`.
+Commits are blocked unless exactly one item is active, verification passed after
+the latest write, workflow state records that verification, and the run report
+names the same item. Pushes are blocked unless each commit created in the
+session maps to a workflow item with passed verification evidence.
+
+Full Automation and policies with `require_durable_reports` validate report
+structure by required headings and item IDs. They do not judge prose quality.
+The required artifacts are `docs/run-report.md` and `docs/patch-backlog.md` by
+default.
 
 ## Approval Precedence
 

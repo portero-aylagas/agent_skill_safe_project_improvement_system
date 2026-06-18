@@ -39,5 +39,9 @@
     "wget https://api."
   ],
   "audit_log": ".codex/safe-project-audit.jsonl",
-  "state_file": ".codex/safe-project-session-state.json"
+  "state_file": ".codex/safe-project-session-state.json",
+  "workflow_state_file": ".codex/safe-project-workflow.json",
+  "run_report": "docs/run-report.md",
+  "patch_backlog": "docs/patch-backlog.md",
+  "require_durable_reports": false
 }

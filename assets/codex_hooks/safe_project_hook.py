@@ -19,6 +19,26 @@ from typing import Any
 DEFAULT_POLICY_PATH = ".codex/safe-project-policy.json"
 DEFAULT_AUDIT_PATH = ".codex/safe-project-audit.jsonl"
 DEFAULT_STATE_PATH = ".codex/safe-project-session-state.json"
+DEFAULT_WORKFLOW_STATE_PATH = ".codex/safe-project-workflow.json"
+DEFAULT_RUN_REPORT_PATH = "docs/run-report.md"
+DEFAULT_PATCH_BACKLOG_PATH = "docs/patch-backlog.md"
+WORKFLOW_ITEM_ID_PATTERN = re.compile(r"^P\d{3}$")
+FULL_AUTOMATION_REPORT_HEADINGS = [
+    "Metadata",
+    "Scope",
+    "Requirements Ledger",
+    "Backlog",
+    "Patch Applied",
+    "Pre-Publish Gate",
+    "Verification",
+    "Follow-Up",
+]
+BACKLOG_REPORT_HEADINGS = [
+    "Requirements Ledger Snapshot",
+    "Skipped Engineering Areas",
+    "Skipped AI System Areas",
+    "Backlog Items",
+]
 SECRET_KEY_PATTERN = re.compile(
     r"(api[_-]?key|token|secret|password|credential|authorization)", re.IGNORECASE
 )
@@ -160,6 +180,10 @@ def apply_policy_defaults(policy: dict[str, Any]) -> dict[str, Any]:
         "required_inspection_anchors": [],
         "audit_log": DEFAULT_AUDIT_PATH,
         "state_file": DEFAULT_STATE_PATH,
+        "workflow_state_file": DEFAULT_WORKFLOW_STATE_PATH,
+        "run_report": DEFAULT_RUN_REPORT_PATH,
+        "patch_backlog": DEFAULT_PATCH_BACKLOG_PATH,
+        "require_durable_reports": False,
         "protected_paths": [],
         "allowed_approval_gates": {},
         "live_service_env_vars": [
@@ -243,11 +267,11 @@ def handle_event(
         record_session_start(cwd, policy, session)
         return Decision(True)
     if event_name == "PreToolUse":
-        return evaluate_pre_tool(policy, session, event)
+        return evaluate_pre_tool(policy, session, event, cwd)
     if event_name == "UserPromptSubmit":
         return record_user_prompt_approval(session, event)
     if event_name == "PostToolUse":
-        record_post_tool(policy, session, event)
+        record_post_tool(policy, session, event, cwd)
         return Decision(True)
     if event_name == "Stop":
         return evaluate_stop(cwd, policy, session)
@@ -262,15 +286,24 @@ def record_session_start(cwd: Path, policy: dict[str, Any], session: dict[str, A
 
 
 def evaluate_pre_tool(
-    policy: dict[str, Any], session: dict[str, Any], event: dict[str, Any]
+    policy: dict[str, Any],
+    session: dict[str, Any],
+    event: dict[str, Any],
+    cwd: Path | None = None,
 ) -> Decision:
     """Evaluate a `PreToolUse` event before Codex runs a tool."""
+    repo = cwd or Path.cwd()
     tool_name = str(event.get("tool_name") or "")
     tool_input = event.get("tool_input") or {}
     command = extract_command(tool_input)
     analysis = analyze_command(command, policy) if command else empty_command_analysis()
     changed_paths = extract_candidate_paths(tool_name, tool_input, command, analysis)
     write_action = is_write_action(tool_name, tool_input, command, analysis)
+    workflow_decision = workflow_pre_tool_decision(
+        repo, policy, session, command, analysis, write_action
+    )
+    if not workflow_decision.allowed:
+        return workflow_decision
 
     if policy["mode"] == "review" and write_action:
         return Decision(False, "Review Mode blocks file and workspace writes.")
@@ -389,9 +422,13 @@ def command_policy_decision(
 
 
 def record_post_tool(
-    policy: dict[str, Any], session: dict[str, Any], event: dict[str, Any]
+    policy: dict[str, Any],
+    session: dict[str, Any],
+    event: dict[str, Any],
+    cwd: Path | None = None,
 ) -> None:
     """Record evidence from a completed tool call."""
+    repo = cwd or Path.cwd()
     tool_name = str(event.get("tool_name") or "")
     tool_input = event.get("tool_input") or {}
     tool_response = event.get("tool_response") or {}
@@ -402,13 +439,18 @@ def record_post_tool(
     if is_read_action(tool_name, tool_input, command, analysis):
         session["inspection_events"] = int(session.get("inspection_events", 0)) + 1
         update_inspection_anchors(policy, session, tool_input, command)
-    if is_write_action(tool_name, tool_input, command, analysis):
+    publish_action = policy.get("mode") == "full_automation" and (
+        is_git_commit_command(analysis) or is_git_push_command(analysis)
+    )
+    if is_write_action(tool_name, tool_input, command, analysis) and not publish_action:
         session["write_count"] = int(session.get("write_count", 0)) + 1
         session["last_write_index"] = session.get("event_index", 0)
         session["verification_after_write"] = False
     if command and command_matches_verification(command, policy["verification_command"]):
         if int(session.get("write_count", 0)) > 0:
             session["verification_after_write"] = command_succeeded(tool_response)
+        record_workflow_verification(repo, policy, session, command, tool_response)
+    record_workflow_git_evidence(repo, policy, session, command, tool_response)
     if not command_succeeded(tool_response):
         session.setdefault("failures", []).append(
             {"event_index": session.get("event_index", 0), "tool_name": tool_name}
@@ -418,6 +460,9 @@ def record_post_tool(
 def evaluate_stop(cwd: Path, policy: dict[str, Any], session: dict[str, Any]) -> Decision:
     """Evaluate whether the session can end cleanly."""
     session["final_git"] = git_snapshot(cwd)
+    workflow_decision = workflow_stop_decision(cwd, policy, session)
+    if not workflow_decision.allowed:
+        return workflow_decision
     wrote = int(session.get("write_count", 0)) > 0
     changed = bool(session["final_git"].get("status"))
     verified = bool(session.get("verification_after_write"))
@@ -428,6 +473,463 @@ def evaluate_stop(cwd: Path, policy: dict[str, Any], session: dict[str, Any]) ->
             "verification after the first write.",
         )
     return Decision(True)
+
+
+def workflow_pre_tool_decision(
+    cwd: Path,
+    policy: dict[str, Any],
+    session: dict[str, Any],
+    command: str,
+    analysis: CommandAnalysis,
+    write_action: bool,
+) -> Decision:
+    """Enforce Full Automation workflow ordering before a tool runs."""
+    if policy.get("mode") != "full_automation":
+        return durable_report_decision(cwd, policy)
+    workflow = load_workflow_state(cwd, policy)
+    if workflow is None:
+        return Decision(
+            False,
+            "Full Automation requires workflow state at "
+            f"{policy['workflow_state_file']}. Create audited/backlog items first.",
+        )
+    structure = validate_workflow_structure(workflow)
+    if not structure.allowed:
+        return structure
+    reports = validate_durable_reports(cwd, policy, workflow)
+    if not reports.allowed:
+        return reports
+
+    if is_git_commit_command(analysis):
+        return workflow_commit_decision(cwd, policy, session, workflow)
+    if is_git_push_command(analysis):
+        return workflow_push_decision(cwd, session, workflow)
+    active_items = workflow_active_items(workflow)
+    if write_action:
+        if len(active_items) != 1:
+            return Decision(
+                False,
+                "Full Automation writes require exactly one active workflow item. "
+                "Set one item status to active and clear other active items.",
+            )
+    return Decision(True)
+
+
+def durable_report_decision(cwd: Path, policy: dict[str, Any]) -> Decision:
+    """Require durable reports for non-Full-Automation modes when enabled."""
+    if not policy.get("require_durable_reports"):
+        return Decision(True)
+    workflow = load_workflow_state(cwd, policy) or {"items": []}
+    return validate_durable_reports(cwd, policy, workflow)
+
+
+def workflow_commit_decision(
+    cwd: Path,
+    policy: dict[str, Any],
+    session: dict[str, Any],
+    workflow: dict[str, Any],
+) -> Decision:
+    """Return whether a commit may be created for the active item."""
+    active_items = workflow_active_items(workflow)
+    if len(active_items) != 1:
+        return Decision(
+            False,
+            "Commit blocked: exactly one workflow item must be active. "
+            "Activate one P### item before committing.",
+        )
+    item = active_items[0]
+    item_id = str(item["id"])
+    if not bool(session.get("verification_after_write")):
+        return Decision(
+            False,
+            "Commit blocked: run successful verification after the latest write "
+            f"for active item {item_id}.",
+        )
+    verification = workflow_item_verification(item)
+    if verification.get("result") != "passed":
+        return Decision(
+            False,
+            "Commit blocked: workflow state must record passed verification "
+            f"for active item {item_id}.",
+        )
+    if int(verification.get("event_index") or 0) < int(session.get("last_write_index", 0)):
+        return Decision(
+            False,
+            "Commit blocked: workflow verification is older than the latest write. "
+            f"Re-run {policy['verification_command']} and update {item_id}.",
+        )
+    report_text = read_optional_text(resolve_repo_path(cwd, policy["run_report"]))
+    if item_id not in report_text:
+        return Decision(
+            False,
+            f"Commit blocked: {policy['run_report']} must name active item {item_id}.",
+        )
+    return Decision(True)
+
+
+def workflow_push_decision(
+    cwd: Path, session: dict[str, Any], workflow: dict[str, Any]
+) -> Decision:
+    """Return whether all session commits are mapped before push."""
+    local_commits = commits_created_in_session(cwd, session)
+    mapped = workflow_mapped_commit_shas(workflow)
+    missing = [sha for sha in local_commits if sha not in mapped]
+    if missing:
+        short = ", ".join(sha[:12] for sha in missing)
+        return Decision(
+            False,
+            "Push blocked: every session commit must map to one workflow item "
+            f"with verification evidence. Missing: {short}.",
+        )
+    unverified = [
+        str(item["id"])
+        for item in workflow_items(workflow)
+        if item.get("commit_sha") in local_commits
+        and workflow_item_verification(item).get("result") != "passed"
+    ]
+    if unverified:
+        return Decision(
+            False,
+            "Push blocked: mapped commits need passed verification evidence for "
+            + ", ".join(unverified)
+            + ".",
+        )
+    return Decision(True)
+
+
+def workflow_stop_decision(
+    cwd: Path, policy: dict[str, Any], session: dict[str, Any]
+) -> Decision:
+    """Block incomplete Full Automation sessions at Stop."""
+    if policy.get("mode") != "full_automation":
+        return durable_report_decision(cwd, policy)
+    workflow = load_workflow_state(cwd, policy)
+    if workflow is None:
+        return Decision(
+            False,
+            "Full Automation cannot stop without workflow state. Create "
+            f"{policy['workflow_state_file']} or switch policy mode.",
+        )
+    structure = validate_workflow_structure(workflow)
+    if not structure.allowed:
+        return structure
+    reports = validate_durable_reports(cwd, policy, workflow)
+    if not reports.allowed:
+        return reports
+    incomplete = []
+    report_text = read_optional_text(resolve_repo_path(cwd, policy["run_report"]))
+    for item in workflow_items(workflow):
+        status = str(item.get("status") or "").lower()
+        item_id = str(item["id"])
+        if status in {"done", "committed", "pushed", "completed"}:
+            continue
+        if status == "deferred" and item.get("deferral_reason") and item_id in report_text:
+            continue
+        incomplete.append(item_id)
+    if incomplete:
+        return Decision(
+            False,
+            "Full Automation session incomplete: finish or defer workflow items "
+            + ", ".join(incomplete)
+            + " in workflow state and run report.",
+        )
+    unmapped = [
+        sha for sha in commits_created_in_session(cwd, session)
+        if sha not in workflow_mapped_commit_shas(workflow)
+    ]
+    if unmapped:
+        short = ", ".join(sha[:12] for sha in unmapped)
+        return Decision(
+            False,
+            "Full Automation session has unmapped commits. Add commit evidence "
+            f"to workflow items before stopping: {short}.",
+        )
+    return Decision(True)
+
+
+def record_workflow_verification(
+    cwd: Path,
+    policy: dict[str, Any],
+    session: dict[str, Any],
+    command: str,
+    tool_response: Any,
+) -> None:
+    """Record verification evidence for the active workflow item."""
+    if policy.get("mode") != "full_automation":
+        return
+    workflow = load_workflow_state(cwd, policy)
+    if workflow is None or not command_matches_verification(
+        command, policy["verification_command"]
+    ):
+        return
+    active_items = workflow_active_items(workflow)
+    if len(active_items) != 1:
+        return
+    item = active_items[0]
+    item["verification"] = {
+        "command": command,
+        "result": "passed" if command_succeeded(tool_response) else "failed",
+        "event_index": session.get("event_index", 0),
+        "timestamp": now_iso(),
+    }
+    save_workflow_state(cwd, policy, workflow)
+
+
+def record_workflow_git_evidence(
+    cwd: Path,
+    policy: dict[str, Any],
+    session: dict[str, Any],
+    command: str,
+    tool_response: Any,
+) -> None:
+    """Record branch, commit, and push evidence after successful git commands."""
+    if policy.get("mode") != "full_automation" or not command or not command_succeeded(
+        tool_response
+    ):
+        return
+    workflow = load_workflow_state(cwd, policy)
+    if workflow is None:
+        return
+    analysis = analyze_command(command, policy)
+    snapshot = git_snapshot(cwd)
+    if is_git_branch_change_command(analysis):
+        workflow["branch"] = snapshot.get("branch") or workflow.get("branch")
+    if is_git_commit_command(analysis):
+        active_items = workflow_active_items(workflow)
+        if len(active_items) == 1:
+            commit_sha = snapshot.get("commit") or extract_commit_sha(tool_response)
+            if commit_sha:
+                active_items[0]["commit_sha"] = commit_sha
+                active_items[0]["status"] = "committed"
+                session.setdefault("workflow_commits", []).append(commit_sha)
+    if is_git_push_command(analysis):
+        mapped = set(workflow_mapped_commit_shas(workflow))
+        for item in workflow_items(workflow):
+            if item.get("commit_sha") in mapped:
+                item["pushed"] = True
+                if str(item.get("status") or "").lower() == "committed":
+                    item["status"] = "pushed"
+    save_workflow_state(cwd, policy, workflow)
+
+
+def load_workflow_state(cwd: Path, policy: dict[str, Any]) -> dict[str, Any] | None:
+    """Load the durable workflow state file."""
+    path = resolve_repo_path(cwd, policy["workflow_state_file"])
+    if not path.is_file():
+        return None
+    try:
+        workflow = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {"items": [], "invalid": "workflow state must be valid JSON"}
+    if not isinstance(workflow, dict):
+        return {"items": [], "invalid": "workflow state root must be an object"}
+    return workflow
+
+
+def save_workflow_state(
+    cwd: Path, policy: dict[str, Any], workflow: dict[str, Any]
+) -> None:
+    """Persist the durable workflow state file."""
+    path = resolve_repo_path(cwd, policy["workflow_state_file"])
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(workflow, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
+
+def validate_workflow_structure(workflow: dict[str, Any]) -> Decision:
+    """Validate machine-readable Full Automation workflow state."""
+    if workflow.get("invalid"):
+        return Decision(False, str(workflow["invalid"]))
+    items = workflow_items(workflow)
+    if not items:
+        return Decision(
+            False,
+            "Full Automation workflow state must contain audited/backlog items.",
+        )
+    seen: set[str] = set()
+    for item in items:
+        item_id = str(item.get("id") or "")
+        if not WORKFLOW_ITEM_ID_PATTERN.match(item_id):
+            return Decision(
+                False,
+                "Workflow items need stable IDs like P001. Fix the workflow state.",
+            )
+        if item_id in seen:
+            return Decision(False, f"Workflow item ID {item_id} appears more than once.")
+        seen.add(item_id)
+        if not item.get("status"):
+            return Decision(False, f"Workflow item {item_id} needs a status.")
+    if len(workflow_active_items(workflow)) > 1:
+        return Decision(
+            False,
+            "Workflow state has multiple active items. Leave exactly one active item.",
+        )
+    return Decision(True)
+
+
+def validate_durable_reports(
+    cwd: Path, policy: dict[str, Any], workflow: dict[str, Any]
+) -> Decision:
+    """Validate required report and backlog artifacts by structure."""
+    if policy.get("mode") != "full_automation" and not policy.get(
+        "require_durable_reports"
+    ):
+        return Decision(True)
+    report_path = resolve_repo_path(cwd, policy["run_report"])
+    backlog_path = resolve_repo_path(cwd, policy["patch_backlog"])
+    if not report_path.is_file():
+        return Decision(False, f"Missing durable run report at {policy['run_report']}.")
+    if not backlog_path.is_file():
+        return Decision(
+            False, f"Missing durable patch backlog at {policy['patch_backlog']}."
+        )
+    report_text = report_path.read_text(encoding="utf-8")
+    backlog_text = backlog_path.read_text(encoding="utf-8")
+    missing_report = missing_headings(report_text, FULL_AUTOMATION_REPORT_HEADINGS)
+    if missing_report:
+        return Decision(
+            False,
+            f"{policy['run_report']} is missing required section(s): "
+            + ", ".join(missing_report)
+            + ".",
+        )
+    missing_backlog = missing_headings(backlog_text, BACKLOG_REPORT_HEADINGS)
+    if missing_backlog:
+        return Decision(
+            False,
+            f"{policy['patch_backlog']} is missing required section(s): "
+            + ", ".join(missing_backlog)
+            + ".",
+        )
+    item_ids = [str(item["id"]) for item in workflow_items(workflow)]
+    if item_ids and not any(item_id in backlog_text for item_id in item_ids):
+        return Decision(
+            False,
+            f"{policy['patch_backlog']} must include at least one workflow item ID.",
+        )
+    return Decision(True)
+
+
+def workflow_items(workflow: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return workflow items as mutable dictionaries."""
+    raw_items = workflow.get("items") or workflow.get("backlog") or []
+    if isinstance(raw_items, dict):
+        items = []
+        for item_id, item in raw_items.items():
+            if isinstance(item, dict):
+                item.setdefault("id", str(item_id))
+                items.append(item)
+        return items
+    if isinstance(raw_items, list):
+        return [item for item in raw_items if isinstance(item, dict)]
+    return []
+
+
+def workflow_active_items(workflow: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return items marked active by status or active_item."""
+    active_id = workflow.get("active_item")
+    active = []
+    terminal_statuses = {"done", "committed", "pushed", "completed", "deferred"}
+    for item in workflow_items(workflow):
+        status = str(item.get("status") or "").lower()
+        if status == "active" or (
+            active_id and item.get("id") == active_id and status not in terminal_statuses
+        ):
+            active.append(item)
+    return active
+
+
+def workflow_item_verification(item: dict[str, Any]) -> dict[str, Any]:
+    """Return normalized verification evidence for a workflow item."""
+    verification = item.get("verification")
+    if isinstance(verification, dict):
+        return verification
+    if item.get("verification_result"):
+        return {
+            "result": item.get("verification_result"),
+            "event_index": item.get("verification_event_index", 0),
+        }
+    return {}
+
+
+def workflow_mapped_commit_shas(workflow: dict[str, Any]) -> set[str]:
+    """Return commit SHAs mapped to workflow items with verification evidence."""
+    mapped = set()
+    for item in workflow_items(workflow):
+        commit_sha = item.get("commit_sha")
+        if commit_sha and workflow_item_verification(item).get("result") == "passed":
+            mapped.add(str(commit_sha))
+    return mapped
+
+
+def missing_headings(text: str, headings: list[str]) -> list[str]:
+    """Return headings absent from a markdown document."""
+    found = {
+        match.group(1).strip()
+        for match in re.finditer(r"^#{1,6}\s+(.+?)\s*$", text, re.MULTILINE)
+    }
+    return [heading for heading in headings if heading not in found]
+
+
+def is_git_commit_command(analysis: CommandAnalysis) -> bool:
+    """Return whether analysis contains a git commit segment."""
+    return any(segment.words[:2] == ["git", "commit"] for segment in analysis.segments)
+
+
+def is_git_push_command(analysis: CommandAnalysis) -> bool:
+    """Return whether analysis contains a git push segment."""
+    return any(segment.words[:2] == ["git", "push"] for segment in analysis.segments)
+
+
+def is_git_branch_change_command(analysis: CommandAnalysis) -> bool:
+    """Return whether analysis contains a git branch/history segment."""
+    branch_subcommands = {"checkout", "switch", "branch", "rebase", "merge", "reset"}
+    return any(
+        len(segment.words) > 1
+        and segment.words[0] == "git"
+        and segment.words[1] in branch_subcommands
+        for segment in analysis.segments
+    )
+
+
+def commits_created_in_session(cwd: Path, session: dict[str, Any]) -> list[str]:
+    """Return commits between session start and current HEAD when available."""
+    start_commit = (session.get("start_git") or {}).get("commit")
+    if isinstance(start_commit, str) and start_commit:
+        try:
+            result = subprocess.run(
+                ["git", "rev-list", "--reverse", f"{start_commit}..HEAD"],
+                cwd=cwd,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            result = None
+        if result and result.returncode == 0:
+            return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    return [str(sha) for sha in session.get("workflow_commits", []) if sha]
+
+
+def extract_commit_sha(tool_response: Any) -> str:
+    """Extract a commit SHA from a tool response if present."""
+    if not isinstance(tool_response, dict):
+        return ""
+    text = " ".join(
+        str(tool_response.get(key) or "")
+        for key in ("stdout", "stderr", "output", "message")
+    )
+    match = re.search(r"\b[0-9a-f]{40}\b", text)
+    return match.group(0) if match else ""
+
+
+def read_optional_text(path: Path) -> str:
+    """Read a text file, returning empty text when absent."""
+    if not path.is_file():
+        return ""
+    return path.read_text(encoding="utf-8")
 
 
 def extract_command(tool_input: Any) -> str:

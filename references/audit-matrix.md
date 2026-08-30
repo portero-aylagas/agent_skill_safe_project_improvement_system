@@ -11,6 +11,23 @@ Use these user-facing audit families in reports and backlog items:
 - `Engineering Audits`
 - `AI System Audits`
 
+This matrix is the routing layer for choosing audit areas. After choosing an
+area, use the `SKILL.md` Audit Drilldown guidance to enter the relevant deep
+reference and inspect target-repo evidence before producing findings or patches.
+
+For AI-integrated repositories, classify the architecture before choosing AI
+audit areas. Use `references/ai-architecture-taxonomy.md` to identify who
+controls execution, where nondeterminism enters, what state or side effects
+exist, and which architecture-specific failure modes matter.
+
+Architecture classification routes the audit; it is not a third audit family.
+
+AI app quality combines three testing surfaces: general software testing for
+non-AI deterministic behavior, deterministic AI integration testing for AI
+wiring with fakes and fixtures, and nondeterministic AI behavior evaluation with
+representative cases, rubrics, saved outputs, human review, or optional
+evaluation platforms.
+
 ## Python Scripts and Packages
 
 - Entry points: scripts, modules, CLI commands, notebooks converted to scripts.
@@ -41,6 +58,10 @@ Use these user-facing audit families in reports and backlog items:
 
 ## AI Integration Projects
 
+- Architecture classification: identify whether the project is a single LLM
+  call, multi-call pipeline, branching workflow, deterministic tool workflow,
+  RAG system, conversation/memory system, graph workflow, agent, agentic RAG,
+  multi-agent system, human-in-the-loop system, or hybrid.
 - AI Software Architecture: provider adapters, prompt wiring, model-call
   boundaries, deterministic logic, and fake-client seams are not scattered.
 - Provider boundary: one place for model/API calls.
@@ -54,8 +75,23 @@ Use these user-facing audit families in reports and backlog items:
   malformed/empty response cases, prompt-injection cases where relevant,
   trace/state checks for workflows, and live/model evaluation kept separate from
   normal verification.
+- General software testing: non-AI logic, APIs, UI flows, data handling,
+  persistence, configuration, and delivery checks stay under `Engineering
+  Audits` even when the project contains AI behavior.
 - Cost and safety: token limits, retries, step caps, opt-in high-cost modes,
   visible limits, and logging without sensitive data.
+
+Route architecture-specific detail into existing areas:
+
+- Single calls and multi-call pipelines: `Prompt Quality`, `Structured Output`,
+  `LLM/API Integration`, and `AI Evaluation And Testing`.
+- Branching, graph, and human-in-the-loop systems: `Workflow Automation`,
+  `Structured Output`, `AI Evaluation And Testing`, and `Cost And Usage`.
+- Deterministic tool workflows, agents, agentic RAG, and multi-agent systems:
+  `Agents And Tools`, `Workflow Automation`, `RAG And Retrieval` where
+  retrieval is involved, and `AI Evaluation And Testing`.
+- RAG systems: `RAG And Retrieval`, `Structured Output`, `AI Evaluation And
+  Testing`, and `Cost And Usage`.
 
 ## RAG Projects
 

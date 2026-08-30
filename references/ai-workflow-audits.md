@@ -4,6 +4,18 @@ Use this reference for deeper review of prompts, model integrations, RAG,
 agent/tool workflows, speech pipelines, and orchestrated automations. Keep
 recommendations proportional to the project.
 
+For AI-integrated projects, classify the architecture first with
+`references/ai-architecture-taxonomy.md`. Use that classification to choose
+focused AI System Audits. Do not create a separate `AI Testing` family; testing
+and evaluation findings belong in the existing audit area that owns the
+behavior.
+
+For AI-enabled applications, separate three testing surfaces while auditing:
+general software testing for non-AI code, deterministic AI integration testing
+for AI wiring with fakes and fixtures, and nondeterministic AI behavior
+evaluation with representative cases, rubrics, saved outputs, human review, or
+optional evaluation platforms.
+
 `AI Software Architecture` is the cross-cutting structure audit for AI systems.
 Use it to decide whether AI-specific parts have clear ownership and boundaries.
 Route detailed prompt, provider, retrieval, tool, workflow, speech, cost, and
@@ -26,11 +38,13 @@ Check:
 - provider adapters, prompt storage/wiring, and model-call boundaries have clear
   ownership
 - deterministic business logic is separated from model-dependent behavior
+- the execution controller is clear: application code, model, or shared
 - RAG, agent, tool, and workflow components compose through understandable
   interfaces
 - dependency boundaries allow fake clients or fixtures without live services
 - AI-specific structure can grow without scattering provider, prompt, or runtime
   concerns across unrelated code
+- the chosen architecture is no more autonomous than the problem requires
 
 Do not use this area for prompt wording, prompt variables, schemas/parsing,
 provider settings, retries, timeouts, retrieval quality, tool contracts,
@@ -40,6 +54,7 @@ focused AI System audit areas.
 Return:
 
 - AI architecture summary
+- architecture classification and controller
 - component boundary problems
 - model-dependent behavior that should be isolated
 - minimal structure changes worth doing now
@@ -90,6 +105,8 @@ Check:
 - required and optional fields
 - malformed JSON and validation error handling
 - whether raw model output and parsed output are stored appropriately
+- unsupported enum values, invented routes, partial responses, and contradictory
+  responses are handled before downstream use
 
 Return:
 
@@ -124,15 +141,20 @@ Check:
 
 - document loading, cleaning, and deterministic file discovery
 - chunk size, overlap, and boundary quality
+- metadata, permissions, freshness, and source visibility survive ingestion and
+  retrieval
 - embeddings, vector store paths, rebuild commands, and cache invalidation
 - top-k, filters, ranking, empty corpus, and no-match behavior
 - whether retrieved context actually answers representative questions
+- whether generation remains faithful to retrieved context, handles conflicting
+  evidence, cites correctly, and expresses uncertainty when evidence is weak
 - whether deterministic context assembly is enough instead of vector RAG
 
 Return:
 
 - current RAG/context pipeline
 - chunking and retrieval risks
+- grounding, citation, metadata, and freshness risks
 - fixture corpus and test questions
 - minimal improvements
 - what would be over-engineering
@@ -142,6 +164,8 @@ Return:
 Check:
 
 - model-dependent behaviors are inventoried before choosing tests
+- general software behavior that is not AI-specific is covered by ordinary
+  deterministic tests under `Engineering Audits`
 - deterministic fake-client tests cover provider failures, parser behavior,
   prompt builders, workflow control, and other AI-adjacent behavior
 - fixture-based evaluations cover representative inputs, expected fields,
@@ -157,6 +181,14 @@ Check:
 - prompt-injection or hostile document inputs are considered where user content
   or retrieved content can influence instructions
 - cost and latency risks are visible for multi-call workflows
+- architecture-specific evaluation is considered: routing for branches, state
+  and paths for graphs, retrieval and grounding for RAG, trajectory and stopping
+  for agents, delegation and aggregation for multi-agent systems, and approval
+  enforcement for human-in-the-loop systems
+- traces are used as evidence for complex execution, while evaluators decide
+  whether behavior meets requirements
+- important failures are converted into regression examples when safe and
+  proportionate
 - evaluation results are comparable between versions through fixtures, saved
   outputs, manual review notes, explicit rubrics, or scoring results
 - optional external evaluation platforms, such as LangSmith or OpenAI Evals,
@@ -178,6 +210,7 @@ Return:
 
 - AI behavior inventory
 - current AI test/eval surface
+- architecture-specific testing emphasis
 - deterministic tests to add
 - fixture-based evaluations to add
 - optional live/model evaluations
@@ -196,11 +229,19 @@ Check:
 - final answer extraction
 - debuggability of tool calls and model calls
 - tool failures and recovery behavior
+- selected tools, tool arguments, call ordering, repeated calls, interpretation
+  of tool results, stopping behavior, and final synthesis are observable enough
+  to evaluate
+- agentic RAG distinguishes retrieval decisions, query quality, evidence
+  sufficiency, citation behavior, and unnecessary retrieval
+- multi-agent systems define roles, handoff contracts, shared state,
+  aggregation, recursion limits, and failure containment
 
 Return:
 
 - agent architecture summary
 - tool inventory
+- trajectory, handoff, or aggregation risks where relevant
 - problems by file/function
 - minimal improvements
 - whether to keep the agent design
@@ -211,8 +252,14 @@ Check:
 
 - trigger conditions, idempotency, retries, and failure branches
 - explicit state, node responsibilities, and conditional routing
+- branch coverage, invalid route behavior, branch convergence, and fallback
+  paths where workflows route across predetermined paths
+- graph state schema, node behavior, edge routing, persistence, interruptions,
+  resume behavior, maximum-step behavior, and loop termination where relevant
 - deterministic business rules separated from model calls
 - human approval points for high-risk actions
+- reviewer permissions, stale proposals, human edits, duplicate approval, audit
+  history, timeout, and abandonment behavior for human-in-the-loop systems
 - active run, session, and concurrent workflow behavior
 - stop, restart, and recovery behavior
 - workflow path tracking, logs, run IDs, and reports
@@ -222,6 +269,7 @@ Return:
 
 - workflow summary
 - state or node issues
+- branch, graph, approval, and recovery issues where relevant
 - reliability and traceability risks
 - concurrency and recovery risks
 - evidence gaps

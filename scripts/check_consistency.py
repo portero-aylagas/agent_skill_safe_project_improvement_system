@@ -23,6 +23,7 @@ REQUIRED_PATHS = [
     "references/coding-standards.md",
     "references/engineering-audits.md",
     "references/ai-workflow-audits.md",
+    "references/ai-architecture-taxonomy.md",
     "references/integration-into-other-repos.md",
     "references/patch-policy.md",
     "references/testing-strategy.md",
@@ -67,6 +68,7 @@ PROTOCOL_REQUIREMENTS = [
     "Normal verification must not require live API keys",
     "Do not push, install hooks, or add strict CI unless explicitly authorized",
     "Use fake clients/mocks for AI/API tests.",
+    "For AI-enabled applications, separate three testing surfaces:",
     "When reviewing software engineering quality, assess conformance to",
     "`references/coding-standards.md`",
 ]
@@ -107,6 +109,9 @@ TESTING_STRATEGY_REQUIREMENTS = [
     "Patch tests prove the intended new behavior introduced by the current patch.",
     "Full verification runs the repository's normal checks after the patch",
     "intentional behavior change that needs a deliberate test update",
+    "General software testing: deterministic tests for ordinary application code",
+    "AI integration testing: deterministic tests for model/API/tool/RAG/workflow",
+    "AI behavior evaluation: nondeterministic model-quality checks",
 ]
 
 RUN_ARTIFACT_REQUIREMENTS = [
@@ -119,6 +124,7 @@ RUN_ARTIFACT_REQUIREMENTS = [
 DEEP_AUDIT_REQUIREMENTS = [
     "references/engineering-audits.md",
     "references/ai-workflow-audits.md",
+    "references/ai-architecture-taxonomy.md",
     "references/coding-standards.md",
     "Review mode always loads `references/protocol.md`",
     "Deep audit references are optional. In review mode, load",
@@ -129,6 +135,7 @@ DEEP_AUDIT_REQUIREMENTS = [
     "safe refactor mode unless the patch directly",
     "Prompt technique: zero-shot, few-shot, or structured output chosen deliberately.",
     "UI/backend separation: callbacks validate inputs and call clean backend",
+    "Architecture classification routes the audit; it is not a third audit family.",
 ]
 
 
@@ -368,6 +375,7 @@ def check_deep_audit_requirements() -> list[str]:
     audit_matrix = read_text("references/audit-matrix.md")
     engineering = read_text("references/engineering-audits.md")
     ai_workflow = read_text("references/ai-workflow-audits.md")
+    ai_architecture = read_text("references/ai-architecture-taxonomy.md")
     errors = []
     for requirement in DEEP_AUDIT_REQUIREMENTS:
         if requirement not in skill and requirement not in audit_matrix:
@@ -386,6 +394,10 @@ def check_deep_audit_requirements() -> list[str]:
         errors.append("AI System audits missing core sections")
     if "# AI System Audits" not in ai_workflow:
         errors.append("AI workflow audit reference missing AI System Audits title")
+    if "# AI Architecture Taxonomy" not in ai_architecture:
+        errors.append("AI architecture taxonomy reference missing title")
+    if "## Architecture Ladder" not in ai_architecture:
+        errors.append("AI architecture taxonomy missing architecture ladder")
     return errors
 
 

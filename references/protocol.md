@@ -57,6 +57,19 @@ make verify
 Verification should normally include import/compile checks and tests. It must not
 require live API keys.
 
+For AI-enabled applications, separate three testing surfaces:
+
+- general software testing for ordinary deterministic application behavior
+- AI integration testing for model/API/tool/RAG/workflow wiring with fakes,
+  mocks, stubs, fixtures, fake model clients, fake tools, or fake retrievers
+- AI behavior evaluation for nondeterministic model quality with representative
+  cases, rubrics, saved outputs, human review, LangSmith, or similar explicit
+  opt-in tools
+
+Normal verification should emphasize general software tests and deterministic
+AI integration tests. Live/model evaluations stay separate unless explicitly
+approved.
+
 ## Requirements Ledger
 
 Before audit, backlog, patch selection, or Full Automation work, build a short
@@ -285,7 +298,9 @@ Always load:
 
 For software engineering quality reviews, also load
 `references/engineering-audits.md`. For AI System Audits, also load
-`references/ai-workflow-audits.md`; use
+`references/ai-workflow-audits.md`; classify AI-integrated repositories with
+`references/ai-architecture-taxonomy.md` before selecting focused AI System
+audit areas. Use
 `references/ai-integration-quality.md` as extra implementation guidance when
 working directly on model/provider, prompt, RAG, or evaluation code.
 

@@ -3,6 +3,19 @@
 Use this reference for projects that call models, tool APIs, embedding services,
 RAG pipelines, or agent frameworks.
 
+Use the three testing surfaces to keep implementation guidance separate from
+verification guidance:
+
+- general software testing for non-AI deterministic code
+- AI integration testing for AI wiring with fakes, mocks, stubs, and fixtures
+- AI behavior evaluation for nondeterministic model quality with representative
+  cases, rubrics, saved outputs, human review, or optional evaluation platforms
+
+This file focuses on integration implementation choices. Use
+`references/testing-strategy.md` for the broader testing/evaluation strategy and
+`references/ai-architecture-taxonomy.md` to classify the AI architecture before
+selecting detailed audit areas.
+
 ## Provider Boundaries
 
 - Keep external provider calls behind small wrappers.

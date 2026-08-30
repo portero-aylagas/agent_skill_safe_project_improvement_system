@@ -1,9 +1,10 @@
 # Safe Project Improvement System
 
 Safe Project Improvement System is a promptable development workflow for AI
-coding agents. It helps a user ask an agent to inspect, review, refactor, and
-improve a Python or AI-integrated repository without jumping straight into risky
-edits.
+coding agents. It helps a user ask an agent to inspect, review, refactor, test,
+evaluate, and improve applications that contain AI behavior without jumping
+straight into risky edits. AI behavior includes LLM calls, RAG, tools, agents,
+model-controlled workflows, speech pipelines, or provider/model APIs.
 
 This is not a runtime library or CLI. A user uses it by putting these files where
 the agent can read them, choosing a mode, and prompting the agent to use the safe
@@ -17,6 +18,18 @@ inspect -> characterize -> verify setup -> audit -> backlog -> one patch -> veri
 
 `references/protocol.md` is the canonical workflow. This README is the practical
 user guide; if the two ever disagree, update the README to match the protocol.
+
+For AI-enabled applications, the skill treats quality as three connected testing
+surfaces:
+
+- **General software testing**: ordinary deterministic tests for non-AI code,
+  data handling, APIs, UI flows, configuration, persistence, and delivery.
+- **AI integration testing**: deterministic tests for AI wiring and control
+  flow with fakes, mocks, stubs, fixture responses, fake model clients, fake
+  tools, and fake retrievers.
+- **AI behavior evaluation**: model-quality checks with representative cases,
+  eval datasets, rubrics, saved outputs, human review, LangSmith, or similar
+  explicit opt-in evaluation tools.
 
 ## Use This Skill In Any Repo
 
@@ -204,6 +217,17 @@ multi-step AI automation.
 integrations, RAG, agents, tools, speech, cost, and multi-step AI/tool
 automation. `Workflow Automation` remains an audit area inside that family.
 
+For AI-integrated repositories, classify the architecture before choosing AI
+audit areas. Architecture classification identifies who controls execution,
+where nondeterminism enters, what state or side effects exist, and which failure
+modes matter. It routes work into existing `AI System Audits`; it is not a third
+audit family.
+
+Use the three testing surfaces when routing findings: non-AI behavior belongs
+under `Engineering Audits`; AI wiring belongs under the focused `AI System
+Audits` area that owns the component; model-quality measurement belongs under
+`AI Evaluation And Testing`.
+
 ## Characterization And Verification
 
 Characterization tests, also known as Golden Master or Snapshot tests, capture
@@ -231,6 +255,8 @@ beginner repos without a dependency convention, adding
 - `references/protocol.md`: canonical workflow and required rules.
 - `references/characterization.md`: characterization policy and examples.
 - `references/testing-strategy.md`: verification and test roles.
+- `references/ai-architecture-taxonomy.md`: AI architecture classification and
+  architecture-specific testing emphasis.
 - `references/patch-policy.md`: patch size, risk, and split criteria.
 - `references/integration-into-other-repos.md`: adoption modes and boundaries.
 - `assets/AGENTS.template.md`: project-local agent rules.

@@ -2,15 +2,18 @@
 name: safe-project-improvement-system
 description: >-
   Use this skill when the user wants to safely review, audit, refactor, or
-  improve a Python or AI-integrated project with characterization, local
-  verification, focused patches, fake-client tests, and explicit approval gates
-  for push, hooks, CI, or full automation.
+  improve an application that contains AI behavior such as LLM calls, RAG,
+  tools, agents, workflows, or model APIs, with characterization, local
+  verification, deterministic AI integration tests, optional model evaluations,
+  focused patches, and explicit approval gates for push, hooks, CI, or full
+  automation.
 ---
 
 # Safe Project Improvement System
 
-Use this skill to improve a Python or AI-integrated project safely. The operating
-loop is:
+Use this skill to improve applications that contain AI behavior safely. AI
+behavior includes LLM calls, RAG, tools, agents, model-controlled workflows,
+speech pipelines, or provider/model APIs. The operating loop is:
 
 ```text
 inspect -> characterize -> verify setup -> audit -> backlog -> one patch -> verify
@@ -21,6 +24,15 @@ sections below are a compact operating summary for agent use.
 
 Do not begin with refactoring. First understand the project, current behavior,
 verification surface, and risks.
+
+For AI-enabled applications, reason about three testing surfaces:
+
+- general software testing for ordinary deterministic application code
+- AI integration testing for model/API/tool/RAG/workflow wiring using fakes,
+  mocks, stubs, fixtures, fake model clients, fake tools, or fake retrievers
+- AI behavior evaluation for nondeterministic model quality using
+  representative cases, rubrics, saved outputs, human review, LangSmith, or
+  similar explicit opt-in evaluation tools
 
 ## Adoption Context
 
@@ -83,6 +95,8 @@ or multiple audit areas drive patch selection.
 - Normal verification must not require live API keys.
 - Keep live/model evaluations separate from normal verification unless
   explicitly approved.
+- Separate general software tests, deterministic AI integration tests, and
+  nondeterministic AI behavior evaluations.
 - Distinguish characterization tests, patch tests, regression tests, smoke
   tests, and full verification.
 - Review Mode, audit outputs, persistent backlog outputs, and run reports with
@@ -106,6 +120,8 @@ including deeper general software testing strategy. Load
 `references/ai-workflow-audits.md` for AI System Audits: AI Software
 Architecture, prompts, APIs, RAG, tools, agents, speech, cost, AI evaluation and
 testing, and multi-step AI/tool automation. Use
+`references/ai-architecture-taxonomy.md` to classify AI-integrated repositories
+before selecting focused AI System Audits. Use
 `references/ai-integration-quality.md` as extra implementation guidance when
 working directly on model/provider, prompt, RAG, agent/tool workflow, or AI
 evaluation/testing code. Load both engineering and AI System references only
@@ -118,6 +134,8 @@ AI-system-specific risks. Do not load deep audit references in safe refactor mod
 - `references/characterization.md`: read before medium/high-risk changes or
   when current behavior is unclear.
 - `references/audit-matrix.md`: read for review/audit/backlog work.
+- `references/ai-architecture-taxonomy.md`: read for AI-integrated repositories
+  before selecting focused AI System audit areas.
 - `references/engineering-audits.md`: read when review mode needs deeper
   general software architecture, error handling, testability, validation,
   documentation, hygiene, UI separation, software delivery testing, or security

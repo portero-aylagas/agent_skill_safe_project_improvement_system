@@ -127,6 +127,30 @@ Normal tests must not require:
 Normal verification may include deterministic AI-adjacent tests using fakes,
 mocks, fixtures, schema checks, and property checks.
 
+For AI-enabled applications, use three testing surfaces:
+
+- General software testing: deterministic tests for ordinary application code,
+  data handling, APIs, UI flows, configuration, persistence, and delivery.
+- AI integration testing: deterministic tests for model/API/tool/RAG/workflow
+  wiring using fakes, mocks, stubs, fixtures, fake model clients, fake tools, or
+  fake retrievers.
+- AI behavior evaluation: nondeterministic model-quality checks using
+  representative cases, evaluation datasets, rubrics, saved outputs, human
+  review, LangSmith, OpenAI Evals, or similar explicit opt-in tools.
+
+AI app quality combines all three surfaces:
+
+```text
+general software quality
++ deterministic AI integration correctness
++ nondeterministic AI behavior evaluation
+```
+
+Do not create a separate top-level `AI Testing` audit family. Route non-AI
+behavior to `Engineering Audits`, AI wiring to the focused `AI System Audits`
+area that owns the component, and model-quality measurement to `AI Evaluation
+And Testing`.
+
 Normal verification must not require:
 
 - live model calls
@@ -167,6 +191,127 @@ Avoid:
 - vague LLM-as-judge checks without criteria
 - eval suites that require paid model calls by default
 - large fixture sets before the workflow is stable
+
+### AI Integration Tests
+
+Use deterministic AI integration tests to prove control flow and wiring without
+depending on real model quality.
+
+Prefer:
+
+- fake model clients for provider responses, timeouts, malformed responses, and
+  retries
+- fake embedding clients, retrievers, vector stores, and tool implementations
+- fixture payloads for provider, tool, retrieval, transcript, or parser inputs
+- prompt-rendering checks that assert required sections, variables, and
+  instruction/data boundaries
+- parser and schema tests for missing fields, invalid values, partial outputs,
+  invented routes, and unsupported enum values
+- workflow assertions for state transitions, branch routing, tool-call traces,
+  approval gates, idempotency, and retry limits
+
+These tests show that the application controls the AI capability correctly.
+They do not prove that a real model answer is good enough.
+
+### AI Behavior Evaluations
+
+Use AI behavior evaluations when model-dependent quality matters and cannot be
+proved with deterministic checks alone.
+
+Prefer:
+
+- small representative datasets with expected properties
+- explicit rubrics for relevance, completeness, groundedness, safety, tone, or
+  trajectory quality
+- saved outputs or human-reviewed baselines for important flows
+- repeated-run checks when stability matters
+- LangSmith, OpenAI Evals, or similar tools only when the project needs
+  persistent datasets, trace inspection, experiment comparison, judge scoring,
+  human feedback, or production monitoring
+
+Keep these evaluations separate from normal verification unless the user
+explicitly approves live model calls, credentials, latency, cost, and data
+retention.
+
+### AI Testing Maturity
+
+Use the lowest maturity level that gives meaningful confidence for the current
+project and risk:
+
+1. Define correct behavior.
+2. Unit-test ordinary deterministic code.
+3. Test tools and provider wrappers independently.
+4. Smoke-test the model connection only when live credentials are explicitly
+   approved.
+5. Test structured output, tool-call arguments, and parsing.
+6. Test orchestration with controlled dependencies.
+7. Inspect representative traces for multi-step, tool, RAG, or agent behavior.
+8. Build a small evaluation dataset.
+9. Add deterministic evaluators where possible.
+10. Add calibrated semantic evaluators only when deterministic checks are not
+    enough.
+11. Compare prompt, model, tool, workflow, or retrieval experiments.
+12. Add regression gates for important failures.
+13. Test nondeterminism and repeated runs when stability matters.
+14. Inject likely failures: timeouts, malformed outputs, empty retrieval,
+    invalid tool arguments, retries, and interrupted workflows.
+15. Test security boundaries, prompt injection, tool-output injection, tenant
+    isolation, and approval gates.
+16. Test state, memory, persistence, resume, and multi-turn behavior.
+17. Monitor production traces, failures, latency, tokens, cost, and drift.
+
+At every AI architecture layer, consider components, interfaces, intermediate
+state, complete execution paths, final output, failure behavior, security
+boundaries, latency, and cost.
+
+Architecture-specific emphasis:
+
+- Single LLM call: schema, validation, model settings, and semantic quality.
+- Multi-call pipeline: intermediate contracts, provenance, and retry boundaries.
+- Branching workflow: routing accuracy, fallbacks, invalid routes, and branch
+  convergence.
+- RAG: retrieval quality, metadata filters, grounding, citations, and no-match
+  behavior.
+- Conversation and memory: retention, correction, deletion, isolation,
+  summarization, and restart behavior.
+- Graph workflow: node behavior, edge routing, state updates, persistence,
+  resume, and loop limits.
+- Agents and agentic RAG: trajectory, selected tools, tool arguments, evidence
+  use, stopping behavior, and execution caps.
+- Multi-agent systems: handoffs, shared state, coordination, aggregation,
+  failure containment, and cost growth.
+- Human-in-the-loop systems: approval enforcement, reviewer permissions, edited
+  values, audit history, and recovery after interruption.
+
+### Evaluation Datasets
+
+Use datasets to turn remembered expectations and discovered failures into
+repeatable cases. Keep early datasets small and representative.
+
+Useful categories:
+
+- happy paths
+- boundary and ambiguous cases
+- negative cases
+- tool-specific cases
+- adversarial or prompt-injection cases
+- historical failures
+- long, stateful, or multi-turn cases
+
+Useful expectations:
+
+- required behavior
+- acceptable alternatives
+- forbidden behavior
+- expected tools, routes, or source IDs
+- required evidence
+- deterministic checks
+- semantic rubric criteria
+
+Record dataset, prompt, model, tool, retrieval, and evaluator versions when
+results are compared across changes. Every meaningful AI failure should become a
+regression example unless doing so would expose sensitive data or create a
+maintenance burden larger than the risk.
 
 ### Optional External Evaluation Platforms
 

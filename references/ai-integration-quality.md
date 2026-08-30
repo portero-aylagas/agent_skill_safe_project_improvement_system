@@ -50,14 +50,19 @@ selecting detailed audit areas.
 
 ## Evaluation
 
-AI testing and evaluation has two verification surfaces:
+AI testing and evaluation has three testing surfaces, with two execution modes:
 
-- Normal verification is deterministic and local. It uses fake clients, mocks,
-  fixtures, schema checks, property checks, and workflow assertions. It must not
-  require live model calls, live API keys, paid services, or uncontrolled
-  network access.
-- Live/model evaluation is explicit opt-in. It uses real provider calls and may
-  involve cost, latency, nondeterminism, API keys, and external services.
+- General software testing covers non-AI deterministic application behavior.
+- AI integration testing covers AI wiring with fake clients, mocks, fixtures,
+  schema checks, property checks, and workflow assertions.
+- AI behavior evaluation covers model-dependent quality with representative
+  cases, rubrics, saved outputs, human review, or optional external platforms.
+
+Normal verification is deterministic and local: it uses the first two surfaces
+and must not require live model calls, live API keys, paid services, or
+uncontrolled network access. Live/model evaluation is explicit opt-in; it may
+use real provider calls and involve cost, latency, nondeterminism, API keys, and
+external services.
 
 Use this rule:
 

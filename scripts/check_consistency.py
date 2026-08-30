@@ -109,6 +109,8 @@ TESTING_STRATEGY_REQUIREMENTS = [
     "Patch tests prove the intended new behavior introduced by the current patch.",
     "Full verification runs the repository's normal checks after the patch",
     "intentional behavior change that needs a deliberate test update",
+    "the test would fail if the implementation silently no-oped",
+    "the test is deterministic without sleeps, wall-clock waits",
     "General software testing: deterministic tests for ordinary application code",
     "AI integration testing: deterministic tests for model/API/tool/RAG/workflow",
     "AI behavior evaluation: nondeterministic model-quality checks",

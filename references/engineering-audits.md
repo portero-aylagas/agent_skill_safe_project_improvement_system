@@ -109,6 +109,20 @@ Check:
 - whether risky refactors have characterization coverage before changes
 - whether previous bugs have regression tests
 - whether mocks, fakes, or fixtures are used only where they reduce fragility
+- whether each important behavior maps to at least one test, and unmapped
+  behavior is reported as a gap
+- whether tests would fail on a silent no-op implementation
+- whether negative paths and relevant boundaries are explicit: empty, one,
+  many, maximum, duplicate, concurrent, malformed, unauthorized, and error
+  branches
+- whether test names state scenario and outcome clearly enough to diagnose a
+  failure from the name
+- whether fixtures are minimal, scenario-named, and not drifting into broad
+  shared setup
+- whether mocks are over-specified, tautological, or mirroring implementation
+  details instead of isolating unstable dependencies
+- whether tests hide I/O, depend on ordering, sleep, poll without bounds, use
+  wall-clock timing, or require retries
 - whether tests avoid live services, live API keys, paid services, and
   uncontrolled network access
 - whether tests are too coupled to implementation details
@@ -123,6 +137,8 @@ Return:
 - test purpose classification
 - protected behaviors
 - unprotected high-risk behaviors
+- tests likely to pass for the wrong reason
+- flakiness and hidden I/O risks
 - recommended Testing Portfolio
 - first safe test patch
 - tests that would be low-value, brittle, redundant, or over-engineered

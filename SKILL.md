@@ -92,6 +92,9 @@ or multiple audit areas drive patch selection.
   cleanup in one patch.
 - Do not push, install hooks, or add strict CI unless explicitly authorized.
 - Use fake clients/mocks for AI/API tests.
+- Tests must defend behavior, not line coverage.
+- Reject tests that pass for the wrong reason, including tautologies,
+  over-mocking, timing flake, hidden I/O, fixture drift, or silent no-op passes.
 - Normal verification must not require live API keys.
 - Keep live/model evaluations separate from normal verification unless
   explicitly approved.

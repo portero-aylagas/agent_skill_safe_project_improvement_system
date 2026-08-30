@@ -80,6 +80,29 @@ Avoid:
 - large generated test suites that increase maintenance without protecting
   important behavior
 
+## Test Quality Gate
+
+Before adding or approving a test, confirm:
+
+- the test names the behavior it defends and the outcome expected
+- the test would fail if the implementation silently no-oped
+- the test has one clear reason to fail
+- the assertions check externally visible behavior, public contracts, or
+  important workflow state instead of implementation details
+- setup, action, and assertions are separated clearly enough that hidden setup
+  cannot make the assertion tautological
+- fixtures are minimal, named for scenarios, and kept close to the test when
+  practical
+- mocks and fakes simplify unstable dependencies without mirroring the
+  implementation so closely that both can be wrong together
+- the test is deterministic without sleeps, wall-clock waits, uncontrolled
+  network access, live services, retries, or shared mutable state
+
+Cover negative paths and boundaries when they are relevant to the behavior:
+empty, one, many, maximum, duplicate, concurrent, malformed, unauthorized, and
+every meaningful error branch. If behavior is hard to test cleanly, treat that
+as a design or testability issue instead of adding a brittle test.
+
 ## Minimal Python Setup
 
 When no verification exists, add the smallest useful setup:

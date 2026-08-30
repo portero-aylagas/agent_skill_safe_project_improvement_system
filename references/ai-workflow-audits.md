@@ -168,16 +168,23 @@ Check:
   deterministic tests under `Engineering Audits`
 - deterministic fake-client tests cover provider failures, parser behavior,
   prompt builders, workflow control, and other AI-adjacent behavior
+- fake clients and mocks test the application's control of the AI workflow
+  without mirroring implementation internals
 - fixture-based evaluations cover representative inputs, expected fields,
   required sections, forbidden claims, source IDs, and edge cases
 - optional live/model evaluations are explicit opt-ins and separate from normal
   verification
 - structured outputs are validated for required fields, types, malformed
   responses, empty responses, partial responses, and contradictory responses
+- prompt-rendering tests assert required contract pieces, variables, and
+  instruction/data boundaries, not exact nondeterministic prose
 - RAG retrieval and grounding checks use retrieval fixtures, expected source
   IDs, no-match cases, and unsupported-claim checks where relevant
 - agent/tool workflows are checked with fake tools, fake model decisions,
   trace assertions, or state transition assertions where relevant
+- RAG and agent workflow tests assert source IDs, selected routes, tool calls,
+  state transitions, stopping behavior, retry limits, and failure handling where
+  those behaviors are part of the contract
 - prompt-injection or hostile document inputs are considered where user content
   or retrieved content can influence instructions
 - cost and latency risks are visible for multi-call workflows
